@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Studly — Révise plus intelligemment</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a1a2e; }
+    header { background: white; padding: 16px 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; }
+    .logo { font-size: 24px; font-weight: 800; color: #185FA5; letter-spacing: -1px; }
+    .logo span { color: #38bdf8; }
+    .badge { background: #dbeafe; color: #1d4ed8; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .hero { background: #185FA5; padding: 50px 20px; text-align: center; color: white; }
+    .hero-icons { font-size: 44px; margin-bottom: 16px; }
+    .hero h1 { font-size: 34px; font-weight: 800; margin-bottom: 10px; line-height: 1.2; }
+    .hero h1 span { color: #bfdbfe; }
+    .hero p { font-size: 17px; opacity: 0.9; max-width: 500px; margin: 0 auto 30px; line-height: 1.6; }
+    .steps { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+    .step { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 12px; padding: 12px 18px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; }
+    .step-num { background: white; color: #185FA5; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; flex-shrink: 0; }
+    .container { max-width: 820px; margin: 40px auto; padding: 0 20px; }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .feature { background: white; border-radius: 16px; padding: 22px; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+    .feature-icon { font-size: 32px; margin-bottom: 10px; }
+    .feature h3 { font-size: 14px; font-weight: 700; color: #1e3a5f; margin-bottom: 5px; }
+    .feature p { font-size: 12px; color: #64748b; line-height: 1.5; }
+    .upload-card { background: white; border-radius: 20px; padding: 40px; text-align: center; border: 2.5px dashed #93c5fd; cursor: pointer; transition: all 0.3s; }
+    .upload-card:hover { border-color: #185FA5; background: #f0f9ff; }
+    .upload-card input { display: none; }
+    .upload-emoji { font-size: 56px; margin-bottom: 14px; display: block; }
+    .upload-card h2 { font-size: 20px; font-weight: 700; color: #1e3a5f; margin-bottom: 6px; }
+    .upload-card p { color: #64748b; font-size: 14px; }
+    .upload-formats { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+    .format-tag { background: #eff6ff; color: #1d4ed8; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .filename-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 10px 18px; margin-top: 14px; display: none; align-items: center; gap: 10px; font-size: 14px; color: #1d4ed8; font-weight: 500; }
+    .btn-main { background: #185FA5; color: white; border: none; padding: 16px 40px; border-radius: 14px; font-size: 17px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 18px; transition: all 0.3s; font-family: inherit; }
+    .btn-main:hover { background: #0c447c; }
+    .btn-main:disabled { background: #cbd5e1; cursor: not-allowed; }
+    .loading { display: none; text-align: center; padding: 60px 20px; background: white; border-radius: 20px; margin-bottom: 24px; }
+    .loading-emoji { font-size: 52px; animation: bounce 1s infinite; display: block; margin-bottom: 18px; }
+    @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+    .loading h3 { font-size: 20px; font-weight: 700; color: #1e3a5f; margin-bottom: 8px; }
+    .loading p { color: #64748b; font-size: 15px; }
+    .progress-bar { background: #e2e8f0; border-radius: 10px; height: 6px; margin: 20px auto; max-width: 300px; overflow: hidden; }
+    .progress-fill { background: #185FA5; height: 100%; border-radius: 10px; animation: progress 3s ease-in-out infinite; }
+    @keyframes progress { 0%{width:5%} 50%{width:80%} 100%{width:95%} }
+    .results { display: none; }
+    .result-header { text-align: center; margin-bottom: 24px; padding: 22px; background: #185FA5; border-radius: 20px; color: white; }
+    .result-header h2 { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+    .result-header p { opacity: 0.85; font-size: 14px; }
+    .card { background: white; border-radius: 20px; padding: 26px; margin-bottom: 22px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+    .card-title { font-size: 18px; font-weight: 800; color: #1e3a5f; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 2px solid #eff6ff; }
+    .qcm-item { margin-bottom: 22px; padding: 18px; background: #fafbff; border-radius: 12px; border: 1.5px solid #e2e8f0; }
+    .qcm-num { font-size: 11px; font-weight: 700; color: #185FA5; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .qcm-question { font-weight: 700; font-size: 15px; color: #1e3a5f; margin-bottom: 12px; line-height: 1.5; }
+    .choix { display: flex; flex-direction: column; gap: 8px; }
+    .choix-btn { background: white; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 11px 14px; text-align: left; cursor: pointer; font-size: 14px; color: #334155; transition: all 0.2s; font-family: inherit; }
+    .choix-btn:hover:not(:disabled) { border-color: #185FA5; background: #eff6ff; color: #185FA5; }
+    .choix-btn.correct { border-color: #22c55e !important; background: #f0fdf4 !important; color: #15803d !important; font-weight: 600; }
+    .choix-btn.wrong { border-color: #ef4444 !important; background: #fef2f2 !important; color: #dc2626 !important; }
+    .choix-btn:disabled { cursor: not-allowed; }
+    .score-box { display: none; text-align: center; padding: 18px; border-radius: 12px; margin-top: 18px; font-weight: 700; font-size: 17px; }
+    .score-good { background: #f0fdf4; color: #15803d; border: 2px solid #22c55e; }
+    .score-mid { background: #fffbeb; color: #92400e; border: 2px solid #f59e0b; }
+    .score-bad { background: #fef2f2; color: #dc2626; border: 2px solid #ef4444; }
+    .btn-restart { background: white; color: #185FA5; border: 2px solid #185FA5; padding: 14px 32px; border-radius: 14px; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 8px; transition: all 0.2s; font-family: inherit; }
+    .btn-restart:hover { background: #eff6ff; }
+    .btn-download { display: block; margin: 0 auto 20px; padding: 12px 28px; color: white; border: none; border-radius: 20px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .paywall { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
+    .paywall-card { background: white; border-radius: 24px; padding: 40px; max-width: 680px; width: 100%; text-align: center; }
+    .paywall-emoji { font-size: 52px; margin-bottom: 16px; }
+    .paywall-card h2 { font-size: 24px; font-weight: 800; color: #1e3a5f; margin-bottom: 8px; }
+    .paywall-card > p { color: #64748b; font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+    .plans { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
+    .plan { flex: 1; min-width: 180px; border-radius: 18px; padding: 22px; text-align: center; border: 2px solid transparent; cursor: pointer; transition: all 0.2s; position: relative; }
+    .plan-trial { background: #f0f9ff; border-color: #38bdf8; }
+    .plan-trial:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(56,189,248,0.2); }
+    .plan-pro { background: #185FA5; color: white; }
+    .plan-pro:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(24,95,165,0.35); }
+    .plan-premium { background: #1e1b4b; color: white; border-color: #7c3aed; }
+    .plan-premium:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(124,58,237,0.35); }
+    .plan-badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .plan-icon { font-size: 32px; margin-bottom: 10px; }
+    .plan-name { font-size: 15px; font-weight: 800; margin-bottom: 6px; }
+    .plan-price { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+    .plan-desc { font-size: 12px; opacity: 0.75; margin-bottom: 14px; }
+    .plan-features { list-style: none; text-align: left; margin-bottom: 16px; }
+    .plan-features li { font-size: 12px; padding: 3px 0; display: flex; align-items: center; gap: 6px; }
+    .plan-btn { width: 100%; padding: 11px; border-radius: 12px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+    .paywall-note { font-size: 12px; color: #94a3b8; margin-top: 8px; }
+    .flashcard-container { perspective: 1000px; margin-bottom: 20px; }
+    .flashcard { width: 100%; min-height: 200px; position: relative; transform-style: preserve-3d; transition: transform 0.5s; cursor: pointer; border-radius: 16px; }
+    .flashcard.flipped { transform: rotateY(180deg); }
+    .flashcard-face { position: absolute; width: 100%; min-height: 200px; backface-visibility: hidden; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .flashcard-front { background: #f8faff; border: 2px solid #e2e8f0; }
+    .flashcard-back { background: #185FA5; transform: rotateY(180deg); }
+    @media print {
+      header, .hero, .features, #uploadSection, .loading, .result-header, .card-title, #qcmSection, #flashcardsSection, .btn-restart, .btn-download, .paywall { display: none !important; }
+      body { background: white; }
+      .results { display: block !important; }
+    }
+    footer { text-align: center; padding: 28px; color: #94a3b8; font-size: 13px; border-top: 1px solid #e2e8f0; margin-top: 40px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Study<span>.</span>ai</div>
+  <div class="badge">🚀 Bêta gratuite</div>
+</header>
+
+<div class="hero">
+  <div class="hero-icons">📚✨🧠</div>
+  <h1>Révise <span>10x plus vite</span><br>grâce à l'IA</h1>
+  <p>Upload ton cours en PDF et obtiens une fiche colorée + QCM + Flashcards en quelques secondes.</p>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div> 📄 Upload ton PDF</div>
+    <div class="step"><div class="step-num">2</div> 🤖 L'IA analyse</div>
+    <div class="step"><div class="step-num">3</div> 🎨 Fiche + QCM prêts</div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="features">
+    <div class="feature"><div class="feature-icon">📋</div><h3>Fiche de révision</h3><p>Une fiche colorée et structurée</p></div>
+    <div class="feature"><div class="feature-icon">🧠</div><h3>QCM intelligent</h3><p>Questions générées sur mesure</p></div>
+    <div class="feature"><div class="feature-icon">🃏</div><h3>Flashcards</h3><p>Mode révision interactif Premium</p></div>
+    <div class="feature"><div class="feature-icon">🎓</div><h3>Toutes matières</h3><p>Droit, éco, médecine, histoire...</p></div>
+  </div>
+
+  <div id="uploadSection">
+    <div class="upload-card" onclick="document.getElementById('pdfInput').click()">
+      <span class="upload-emoji">📂</span>
+      <h2>Dépose ton cours ici</h2>
+      <p>Clique pour sélectionner ton fichier PDF</p>
+      <div class="upload-formats">
+        <span class="format-tag">📄 PDF</span>
+        <span class="format-tag">🔒 100% privé</span>
+        <span class="format-tag">⚡ Résultat en 15 sec</span>
+      </div>
+      <input type="file" id="pdfInput" accept=".pdf">
+    </div>
+    <div class="filename-box" id="filenameBox">
+      <span>📄</span><span id="filenameText"></span>
+    </div>
+    <button class="btn-main" id="analyzeBtn" disabled>
+      🚀 Générer ma fiche et mon QCM
+    </button>
+  </div>
+
+  <div class="loading" id="loading">
+    <span class="loading-emoji">🤖</span>
+    <h3>L'IA analyse ton cours...</h3>
+    <p>Génération de ta fiche et de ton QCM</p>
+    <div class="progress-bar"><div class="progress-fill"></div></div>
+    <p style="font-size:13px;color:#94a3b8;margin-top:8px;">Ça peut prendre 15 à 30 secondes</p>
+  </div>
+
+  <div class="results" id="results">
+    <div class="result-header">
+      <h2>✅ Ta fiche est prête !</h2>
+      <p>Télécharge ta fiche ou entraîne-toi avec le QCM</p>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 Fiche de révision</div>
+      <div id="ficheContent"></div>
+    </div>
+    <div class="card" id="qcmSection">
+      <div class="card-title">🧠 QCM — Teste tes connaissances</div>
+      <div id="qcmContent"></div>
+      <div class="score-box" id="scoreBox"></div>
+    </div>
+    <div class="card" id="flashcardsSection" style="display:none;">
+      <div class="card-title">🃏 Flashcards — Mode révision Premium</div>
+      <div class="flashcard-container">
+        <div class="flashcard" id="flashcard">
+          <div class="flashcard-face flashcard-front" id="flashcard-front"></div>
+          <div class="flashcard-face flashcard-back" id="flashcard-back"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px;flex-wrap:wrap;">
+        <button id="fc-prev" style="background:white;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 18px;cursor:pointer;font-size:14px;font-family:inherit;">⬅ Précédent</button>
+        <span id="fc-counter" style="padding:10px 18px;font-size:14px;font-weight:700;color:#185FA5;"></span>
+        <button id="fc-next" style="background:white;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 18px;cursor:pointer;font-size:14px;font-family:inherit;">Suivant ➡</button>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button id="fc-known" style="background:#f0fdf4;border:2px solid #22c55e;border-radius:10px;padding:12px 24px;cursor:pointer;font-size:14px;font-weight:700;color:#15803d;font-family:inherit;"></button>
+        <button id="fc-review" style="background:#fffbeb;border:2px solid #f59e0b;border-radius:10px;padding:12px 24px;cursor:pointer;font-size:14px;font-weight:700;color:#92400e;font-family:inherit;"></button>
+      </div>
+    </div>
+    <button class="btn-restart" id="restartBtn">⬆️ Analyser un autre cours</button>
+  </div>
+</div>
+
+<div class="paywall" id="paywall">
+  <div class="paywall-card">
+    <div class="paywall-emoji">🔒</div>
+    <h2>Tu as utilisé ton essai gratuit !</h2>
+    <p>Pour continuer à générer des fiches illimitées, choisis une option ci-dessous.</p>
+    <div class="plans">
+      <div class="plan plan-trial">
+        <div class="plan-icon">🎯</div>
+        <div class="plan-name" style="color:#0c4a6e;">Premier essai</div>
+        <div class="plan-price" style="color:#185FA5;">2,99€</div>
+        <div class="plan-desc" style="color:#64748b;">1 analyse complète</div>
+        <ul class="plan-features">
+          <li style="color:#334155;">✅ 1 fiche de révision</li>
+          <li style="color:#334155;">✅ 1 QCM personnalisé</li>
+          <li style="color:#334155;">✅ Téléchargement PDF</li>
+        </ul>
+        <button class="plan-btn" style="background:#185FA5;color:white;" onclick="checkout('trial')">Commencer pour 2,99€</button>
+      </div>
+      <div class="plan plan-pro">
+        <div class="plan-badge" style="background:#f59e0b;color:white;">⭐ Populaire</div>
+        <div class="plan-icon">🚀</div>
+        <div class="plan-name">Studly Pro</div>
+        <div class="plan-price">9,99€<span style="font-size:13px;font-weight:400;">/mois</span></div>
+        <div class="plan-desc">Fiches illimitées</div>
+        <ul class="plan-features">
+          <li style="color:rgba(255,255,255,0.9);">✅ Fiches illimitées</li>
+          <li style="color:rgba(255,255,255,0.9);">✅ QCM illimités</li>
+          <li style="color:rgba(255,255,255,0.9);">✅ Téléchargement PDF</li>
+          <li style="color:rgba(255,255,255,0.9);">✅ Toutes matières</li>
+          <li style="color:rgba(255,255,255,0.9);">✅ Annulable à tout moment</li>
+        </ul>
+        <button class="plan-btn" style="background:white;color:#185FA5;" onclick="checkout('subscription')">S'abonner 9,99€/mois</button>
+      </div>
+      <div class="plan plan-premium">
+        <div class="plan-badge" style="background:#7c3aed;color:white;">✨ Premium</div>
+        <div class="plan-icon">🃏</div>
+        <div class="plan-name">Studly Premium</div>
+        <div class="plan-price">12,99€<span style="font-size:13px;font-weight:400;">/mois</span></div>
+        <div class="plan-desc">Tout Pro + Flashcards</div>
+        <ul class="plan-features">
+          <li style="color:rgba(255,255,255,0.9);">✅ Fiches illimitées</li>
+          <li style="color:rgba(255,255,255,0.9);">✅ QCM illimités</li>
+          <li style="color:rgba(255,255,255,0.9);">✅ Flashcards interactives</li>
+          <li style="color:rgba(255,255,255,0.9);">✅ Mode révision intelligent</li>
+          <li style="color:rgba(255,255,255,0.9);">✅ Annulable à tout moment</li>
+        </ul>
+        <button class="plan-btn" style="background:#7c3aed;color:white;" onclick="checkout('premium')">S'abonner 12,99€/mois</button>
+      </div>
+    </div>
+    <p class="paywall-note">🔒 Paiement sécurisé par Stripe · Annulation en 1 clic</p>
+  </div>
+</div>
+
+<footer>Studly © 2025 — L'IA au service de ta réussite 🎓</footer>
+
+<script>
+  let SESSION_ID = null;
+  let selectedFile = null;
+  let qcmData = [];
+  let answered = {};
+  let scores = {};
+  let userAccess = { uploads: 0, isPro: false, isPremium: false };
+
+  async function initSession() {
+    try {
+      const access = await fetch('/check-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }).then(r => r.json());
+      SESSION_ID = access.sessionId;
+      userAccess = access;
+
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('type')) {
+        window.history.replaceState({}, '', '/');
+        if (access.isPremium) showToast('🎉 Bienvenue sur Studly Premium !');
+        else if (access.isPro) showToast('🎉 Bienvenue sur Studly Pro !');
+        else showToast('✅ Paiement confirmé !');
+      }
+    } catch(e) {
+      SESSION_ID = Math.random().toString(36).substr(2, 9);
+    }
+  }
+
+  function showToast(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#185FA5;color:white;padding:14px 24px;border-radius:12px;font-weight:700;font-size:15px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.2);';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  }
+
+  function showPaywall() {
+    document.getElementById('paywall').style.display = 'flex';
+  }
+
+  async function checkout(type) {
+    try {
+      const res = await fetch('/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type })
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch(e) {
+      alert('Erreur lors du paiement. Réessaie.');
+    }
+  }
+
+  function handleFile(e) {
+    selectedFile = e.target.files[0];
+    if (selectedFile) {
+      document.getElementById('filenameBox').style.display = 'flex';
+      document.getElementById('filenameText').textContent = selectedFile.name;
+      document.getElementById('analyzeBtn').disabled = false;
+    }
+  }
+
+  async function analyze() {
+    if (!selectedFile) return;
+
+    try {
+      const access = await fetch('/check-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }).then(r => r.json());
+      SESSION_ID = access.sessionId;
+      userAccess = access;
+
+      if (!access.isPro && access.uploads >= 1) {
+        showPaywall();
+        return;
+      }
+    } catch(e) {}
+
+    document.getElementById('uploadSection').style.display = 'none';
+    document.getElementById('loading').style.display = 'block';
+
+    const formData = new FormData();
+    formData.append('pdf', selectedFile);
+    formData.append('sessionId', SESSION_ID);
+
+    try {
+      const res = await fetch('/analyze', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.error === 'limit_reached') { showPaywall(); restart(); return; }
+      if (data.error) throw new Error(data.error);
+      displayResults(data);
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+      restart();
+    }
+  }
+
+  function displayResults(data) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('results').style.display = 'block';
+
+    const palettes = {
+      purple: { bg: '#faf8ff', accent: '#7c3aed', light: '#ede9fe', text: '#3b1f6e', tag: '#ddd6fe' },
+      yellow: { bg: '#fffef5', accent: '#d97706', light: '#fef9c3', text: '#78350f', tag: '#fde68a' },
+      pink:   { bg: '#fff8fb', accent: '#db2777', light: '#fce7f3', text: '#831843', tag: '#fbcfe8' },
+      blue:   { bg: '#f8fbff', accent: '#2563eb', light: '#dbeafe', text: '#1e3a8a', tag: '#bfdbfe' },
+      green:  { bg: '#f6fdf9', accent: '#059669', light: '#d1fae5', text: '#064e3b', tag: '#a7f3d0' },
+    };
+    const p = palettes[data.couleur] || palettes.purple;
+
+    const normaux = data.fiche.filter(f => f.type === 'normal');
+    const importants = data.fiche.filter(f => f.type === 'important');
+    const arrows = data.fiche.filter(f => f.type === 'arrow');
+
+    const makeSection = (titre, items, icon) => {
+      if (!items.length) return '';
+      return `
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <div style="height:1px;flex:1;background:${p.accent}40;"></div>
+            <span style="background:${p.accent};color:white;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">${icon} ${titre}</span>
+            <div style="height:1px;flex:1;background:${p.accent}40;"></div>
+          </div>
+          <div style="background:white;border:1.5px solid ${p.accent}30;border-radius:14px;padding:16px 20px;">
+            ${items.map(f => `
+              <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed ${p.accent}20;">
+                <div style="width:8px;height:8px;border-radius:50%;background:${p.accent};flex-shrink:0;margin-top:6px;"></div>
+                <div>
+                  <span style="font-weight:700;color:${p.text};font-size:13px;">${f.titre} : </span>
+                  <span style="color:#475569;font-size:13px;line-height:1.7;">${f.contenu}</span>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    };
+
+    document.getElementById('ficheContent').innerHTML = `
+      <div id="bristolCard" style="background:${p.bg};border:2px solid ${p.accent}40;border-radius:20px;padding:32px;position:relative;margin-bottom:12px;">
+        <div style="position:absolute;top:16px;left:16px;width:10px;height:10px;border-radius:50%;background:${p.accent}40;border:1.5px solid ${p.accent};"></div>
+        <div style="position:absolute;bottom:16px;left:16px;width:10px;height:10px;border-radius:50%;background:${p.accent}40;border:1.5px solid ${p.accent};"></div>
+        <div style="text-align:center;margin-bottom:28px;padding:0 16px;">
+          <div style="display:inline-block;background:${p.light};color:${p.text};padding:4px 16px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;border:1px solid ${p.tag};">${data.matiere || 'Cours'}</div>
+          <div style="font-size:26px;font-weight:800;color:${p.text};margin-bottom:6px;line-height:1.2;">${data.titre || 'Fiche de révision'}</div>
+          <div style="height:3px;background:${p.accent};border-radius:2px;max-width:200px;margin:0 auto 8px;"></div>
+          <div style="font-size:11px;color:${p.accent}90;letter-spacing:1px;">Généré par Studly ✨</div>
+        </div>
+        ${makeSection('Concepts clés', normaux, '📌')}
+        ${makeSection('Définitions & formules', importants, '⭐')}
+        ${arrows.length ? makeSection('À retenir', arrows, '→') : ''}
+      </div>
+      <button class="btn-download" onclick="window.print()" style="background:${p.accent};">📥 Télécharger la fiche en PDF</button>
+    `;
+
+    qcmData = data.qcm;
+    answered = {}; scores = {};
+    document.getElementById('qcmContent').innerHTML = data.qcm.map((q, i) => `
+      <div class="qcm-item">
+        <div class="qcm-num">Question ${i+1}</div>
+        <div class="qcm-question">${q.question}</div>
+        <div class="choix" id="choix-${i}">
+          ${q.choix.map(ch => `<button class="choix-btn" onclick="answer(${i},'${ch[0]}',this)">${ch}</button>`).join('')}
+        </div>
+      </div>`).join('');
+
+    if (data.isPremium && data.flashcards && data.flashcards.length) {
+      document.getElementById('flashcardsSection').style.display = 'block';
+      let current = 0;
+      let known = [];
+      let toReview = [];
+
+      const renderCard = () => {
+        const card = data.flashcards[current];
+        const fc = document.getElementById('flashcard');
+        fc.classList.remove('flipped');
+        document.getElementById('flashcard-front').innerHTML = `
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">Question ${current+1}/${data.flashcards.length}</div>
+          <div style="font-size:17px;font-weight:700;color:#1e3a5f;line-height:1.5;">${card.question}</div>
+          <div style="margin-top:16px;font-size:12px;color:#94a3b8;">👆 Clique pour voir la réponse</div>
+        `;
+        document.getElementById('flashcard-back').innerHTML = `
+          <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">Réponse</div>
+          <div style="font-size:15px;color:white;line-height:1.7;">${card.reponse}</div>
+        `;
+        document.getElementById('fc-counter').textContent = `${current+1} / ${data.flashcards.length}`;
+        document.getElementById('fc-known').textContent = `✅ Je savais (${known.length})`;
+        document.getElementById('fc-review').textContent = `🔄 À revoir (${toReview.length})`;
+      };
+
+      document.getElementById('flashcard').onclick = () => {
+        document.getElementById('flashcard').classList.toggle('flipped');
+      };
+      document.getElementById('fc-prev').onclick = () => { current = (current - 1 + data.flashcards.length) % data.flashcards.length; renderCard(); };
+      document.getElementById('fc-next').onclick = () => { current = (current + 1) % data.flashcards.length; renderCard(); };
+      document.getElementById('fc-known').onclick = () => { known.push(current); current = (current + 1) % data.flashcards.length; renderCard(); };
+      document.getElementById('fc-review').onclick = () => { toReview.push(current); current = (current + 1) % data.flashcards.length; renderCard(); };
+
+      renderCard();
+    }
+  }
+
+  function answer(idx, choix, btn) {
+    if (answered[idx]) return;
+    answered[idx] = true;
+    const correct = qcmData[idx].reponse;
+    document.querySelectorAll(`#choix-${idx} .choix-btn`).forEach(b => {
+      b.disabled = true;
+      if (b.textContent.trim().startsWith(correct)) b.classList.add('correct');
+    });
+    if (choix !== correct) btn.classList.add('wrong');
+    scores[idx] = choix === correct;
+    if (Object.keys(answered).length === qcmData.length) showScore();
+  }
+
+  function showScore() {
+    const correct = Object.values(scores).filter(Boolean).length;
+    const total = qcmData.length;
+    const pct = Math.round(correct/total*100);
+    const box = document.getElementById('scoreBox');
+    box.style.display = 'block';
+    box.className = 'score-box '+(pct>=80?'score-good':pct>=50?'score-mid':'score-bad');
+    const emoji = pct>=80?'🏆':pct>=50?'💪':'📖';
+    box.innerHTML = `${emoji} Score : ${correct}/${total} — ${pct}%<br><span style="font-size:13px;font-weight:400;margin-top:4px;display:block;">${pct>=80?'Excellent ! Tu maîtrises ce cours !':pct>=50?'Pas mal ! Continue à réviser.':'Courage ! Relis ta fiche et réessaie.'}</span>`;
+  }
+
+  function restart() {
+    selectedFile = null;
+    qcmData = []; answered = {}; scores = {};
+    document.getElementById('uploadSection').style.display = 'block';
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('filenameBox').style.display = 'none';
+    document.getElementById('analyzeBtn').disabled = true;
+    document.getElementById('pdfInput').value = '';
+    document.getElementById('scoreBox').style.display = 'none';
+    document.getElementById('flashcardsSection').style.display = 'none';
+  }
+
+  document.getElementById('pdfInput').addEventListener('change', handleFile);
+  document.getElementById('analyzeBtn').addEventListener('click', analyze);
+  document.getElementById('restartBtn').addEventListener('click', restart);
+
+  initSession();
+</script>
+</body>
+</html>
