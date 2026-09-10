@@ -65,6 +65,23 @@ class BirdeyeClient:
             raise MarketDataError(f"Birdeye holders a échoué pour {token_address}: {data}")
         return data["data"]["items"]
 
+    def get_trending_tokens(self, limit: int = 20) -> list[str]:
+        """Liste de tokens en tendance (volume/rang), indépendamment de tout
+        wallet suivi — sert au scan de marché autonome (voir
+        core/engine.py:on_market_scan_hit).
+        """
+        resp = requests.get(
+            f"{BIRDEYE_BASE_URL}/defi/token_trending",
+            params={"sort_by": "rank", "sort_type": "asc", "offset": 0, "limit": limit},
+            headers=self._headers(),
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("success"):
+            raise MarketDataError(f"Birdeye token_trending a échoué: {data}")
+        return [t["address"] for t in data["data"]["tokens"]]
+
     def fetch_raw_market_data(self, token_address: str) -> RawMarketData:
         overview = self.get_token_overview(token_address)
         try:

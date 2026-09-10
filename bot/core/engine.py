@@ -100,13 +100,36 @@ class TradingEngine:
     # -- ingestion d'un achat détecté par le wallet tracker -----------------
     def on_wallet_buy_event(self, event: WalletBuyEvent) -> None:
         self.wallet_tracker.ingest(event)
-        self._maybe_score_candidate(event.token_address, event.chain, event.timestamp)
+        self._maybe_score_candidate(
+            event.token_address, event.chain, event.timestamp, require_wallet_trigger=True
+        )
 
-    def _maybe_score_candidate(self, token_address: str, chain: str, now: datetime) -> None:
+    # -- ingestion d'un token repéré par le scan de marché autonome --------
+    def on_market_scan_hit(self, token_address: str, chain: str, now: datetime | None = None) -> None:
+        """Contrairement à on_wallet_buy_event, ne dépend d'aucun wallet
+        suivi : le token est scoré directement sur ses signaux marché/Twitter
+        (le signal wallet est quand même calculé — il pourra être non nul si
+        un wallet suivi a par ailleurs acheté ce même token).
+
+        Conséquence assumée des poids de scoring (wallet 45% / marché 40% /
+        twitter 15%) : un token découvert SANS aucune corroboration de wallet
+        plafonne à un score de ~55 (40 marché + 15 twitter au maximum), donc
+        à la confiance "moyenne" au mieux — jamais "haute" ni "très haute".
+        C'est voulu : la corroboration par un wallet réputé est ce qui élève
+        la confiance, pas juste un pic de volume.
+        """
+        self._maybe_score_candidate(
+            token_address, chain, now or datetime.now(timezone.utc), require_wallet_trigger=False
+        )
+
+    def _maybe_score_candidate(
+        self, token_address: str, chain: str, now: datetime, require_wallet_trigger: bool
+    ) -> None:
         wallet_signal = self.wallet_tracker.signal_for_token(token_address, now)
-        min_trigger = self.cfg["scoring"]["wallet_tracker"]["min_wallets_to_trigger"]
-        if wallet_signal.distinct_wallets_buying < min_trigger:
-            return
+        if require_wallet_trigger:
+            min_trigger = self.cfg["scoring"]["wallet_tracker"]["min_wallets_to_trigger"]
+            if wallet_signal.distinct_wallets_buying < min_trigger:
+                return
 
         fetcher = self.market_data_fetchers.get(chain)
         if fetcher is None:

@@ -55,6 +55,23 @@ class DexPaprikaClient:
         resp.raise_for_status()
         return resp.json()
 
+    def get_trending_pools(self, limit: int = 20) -> list[str]:
+        """Liste des pools les plus actifs (triés par volume), indépendamment
+        de tout wallet suivi — sert au scan de marché autonome (voir
+        core/engine.py:on_market_scan_hit). Retourne des adresses de POOL :
+        même simplification que fetch_raw_market_data (pool == "token
+        address" côté moteur) — voir la note dans dry_run.py.
+        """
+        resp = requests.get(
+            f"{DEXPAPRIKA_BASE_URL}/networks/{self.network_id}/pools",
+            params={"order_by": "volume_usd", "sort": "desc", "limit": limit},
+            headers=self._headers(),
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return [p["id"] for p in data.get("pools", [])]
+
     def fetch_raw_market_data(self, pool_address: str, token_address: str) -> RawMarketData:
         pool = self.get_pool(pool_address)
         volume_24h = float(pool.get("volume_usd_24h", 0.0) or 0.0)

@@ -97,7 +97,7 @@ bot/
     scoring.py            # score de confiance 0-100 (3 signaux)
     position_manager.py    # paliers, trailing SL, sizing
     risk_guard.py           # stop catastrophe global, plafond journalier, kill-switch
-    engine.py                # orchestration : wallet event -> score -> position -> exécution
+    engine.py                # orchestration : wallet event OU scan de marché -> score -> position -> exécution
     logging_store.py          # log de décisions (JSONL) + état (SQLite)
   connectors/
     solana_jupiter.py    # exécution Solana (Jupiter)
@@ -115,6 +115,25 @@ bot/
   dry_run.py                 # mode simulation (voir plus haut)
   main.py                     # dry-run par défaut, live sur confirmation explicite
 ```
+
+## Découverte de candidats : deux modes en parallèle
+
+- **Wallet tracker** (`scoring.wallet_tracker.tracked_wallets`) — un token
+  devient candidat quand assez de wallets suivis l'achètent dans la
+  fenêtre configurée. C'est le mode d'origine du cahier des charges.
+- **Scan de marché autonome** (`market_scan` dans `config.yaml`) — le bot
+  regarde aussi, à intervalle régulier, les tokens/pools les plus actifs du
+  moment (les plus gros volumes), sans attendre qu'un wallet suivi achète
+  quoi que ce soit. Voir `core/engine.py:on_market_scan_hit`.
+
+Les deux tournent en même temps et alimentent le même scoring. Différence
+importante : un token trouvé uniquement par le scan de marché (aucun wallet
+suivi ne l'a acheté) plafonne à un score d'environ 55/100 avec les poids
+par défaut (40 marché + 15 twitter max, le wallet tracker pesant 45%) — donc
+confiance "moyenne" au mieux, jamais "haute" ni "très haute". C'est voulu :
+sans corroboration d'un wallet réputé, le palier x100 (réservé à la
+confiance "très haute") ne peut jamais se déclencher sur un token découvert
+par le scan seul.
 
 ## Garde-fous (section 4 du cahier des charges)
 

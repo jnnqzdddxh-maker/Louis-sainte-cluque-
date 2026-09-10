@@ -180,6 +180,16 @@ execution:
   price_poll_interval_seconds: 15
   candidate_rescan_interval_seconds: 30
 
+# Scan de marché autonome : découvre des candidats SANS attendre qu'un
+# wallet suivi achète (contrairement à scoring.wallet_tracker). Un token
+# trouvé ici est quand même scoré avec les 3 signaux (le signal wallet sera
+# juste à 0 la plupart du temps) — voir core/engine.py:on_market_scan_hit
+# pour la conséquence sur le score max atteignable.
+market_scan:
+  enabled: true
+  interval_seconds: 300          # toutes les 5 min, pour ne pas cramer le quota API gratuit
+  tokens_per_scan: 20            # nb de tokens/pools les plus actifs récupérés à chaque scan
+
 fees:
   # Point ouvert (section 8) : à vérifier précisément sur Robinhood Chain
   # une fois la période de gas gratuit terminée (90 jours).

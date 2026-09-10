@@ -93,6 +93,38 @@ async def poll_solana_wallets_loop(engine: TradingEngine, cfg: dict) -> None:
         await asyncio.sleep(interval)
 
 
+async def market_scan_loop(engine: TradingEngine, cfg: dict) -> None:
+    """Scan de marché autonome : découvre des candidats indépendamment de
+    tout wallet suivi (voir core/engine.py:on_market_scan_hit et
+    config.yaml:market_scan). Complète le mode "wallet tracker" plutôt que
+    de le remplacer — les deux tournent en parallèle.
+    """
+    scan_cfg = cfg.get("market_scan", {})
+    if not scan_cfg.get("enabled"):
+        return
+    interval = scan_cfg["interval_seconds"]
+    limit = scan_cfg["tokens_per_scan"]
+
+    birdeye = BirdeyeClient() if cfg["chains"]["solana"]["enabled"] else None
+    dexpaprika = DexPaprikaClient() if cfg["chains"]["robinhood"]["enabled"] else None
+
+    while True:
+        now = datetime.now(timezone.utc)
+        if birdeye is not None:
+            try:
+                for token_address in birdeye.get_trending_tokens(limit=limit):
+                    engine.on_market_scan_hit(token_address, "solana", now)
+            except Exception:
+                log.exception("échec du scan de marché Solana")
+        if dexpaprika is not None:
+            try:
+                for pool_address in dexpaprika.get_trending_pools(limit=limit):
+                    engine.on_market_scan_hit(pool_address, "robinhood", now)
+            except Exception:
+                log.exception("échec du scan de marché Robinhood Chain")
+        await asyncio.sleep(interval)
+
+
 async def price_tick_loop(engine: TradingEngine, cfg: dict) -> None:
     interval = cfg["execution"]["price_poll_interval_seconds"]
     while True:
@@ -128,6 +160,7 @@ async def run() -> None:
         server.serve(),
         poll_solana_wallets_loop(engine, cfg),
         poll_robinhood_wallets_loop(engine, cfg),
+        market_scan_loop(engine, cfg),
         price_tick_loop(engine, cfg),
     )
 
