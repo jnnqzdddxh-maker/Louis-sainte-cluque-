@@ -93,11 +93,12 @@ risk:
   # Le bot s'arrête et repasse en pause manuelle si la perte du jour dépasse
   # CE MONTANT ou CE POURCENTAGE, selon ce qui est atteint en premier.
   daily_loss_cap_eur: 100
-  daily_loss_cap_pct_of_capital: 10
+  # Alignée sur daily_loss_cap_eur / capital_eur (100/500) pour que les deux
+  # seuils se déclenchent au même endroit, pas l'un avant l'autre.
+  daily_loss_cap_pct_of_capital: 20
   daily_loss_cap_action: halt_and_require_manual_validation
   # Capital total engagé sur le bot — sert de base au plafond en %.
-  # Point ouvert (section 8) : ajuster à la vraie taille du capital engagé.
-  capital_eur: 1000
+  capital_eur: 500
 
   # Nombre max de positions ouvertes simultanément — point ouvert (section 8),
   # valeur de départ prudente à ajuster selon le capital total engagé.
