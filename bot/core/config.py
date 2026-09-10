@@ -6,8 +6,14 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from dotenv import load_dotenv
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
+
+# Charge bot/.env dans les variables d'environnement du process dès que
+# core.config est importé (donc avant tout appel à core.secrets.get_secret).
+# Sans ça, .env existe sur le disque mais rien ne le lit jamais.
+load_dotenv(CONFIG_PATH.parent / ".env")
 
 
 @functools.lru_cache(maxsize=1)
