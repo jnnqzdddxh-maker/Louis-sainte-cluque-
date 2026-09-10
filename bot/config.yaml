@@ -63,7 +63,21 @@ scoring:
         - "Bi4rd5FH5bYEN8scZ7wevxNZyNmKHdaBcvewdPFxYdLt"
         - "BQVz7fQ1WsQmSTMY3umdPEPPTm1sdcBcX9sP7o6kPRmB"
         - "F9zT1F46HAoPanR4NC1Yw7TyP8Z9tCavTe48mrzK7aN4"
-      robinhood: []
+      # Fournis par l'utilisateur (leaderboard Fomo.family, Robinhood Chain,
+      # classement 30 jours) le 11/09/2026. Même remarque de prudence que
+      # pour Solana, renforcée : chaîne très récente, et le classement Fomo
+      # peut en partie refléter des gains "papier" gonflés par l'afflux de
+      # copy-traders plutôt qu'un edge réel (voir discussion en amont).
+      robinhood:
+        - "0x38d2999f3E2b0D4543A7c4ba41d52ED634423866"
+        - "0x02737e49eBBa419cc7Ff09df49cb0326721F4e77"
+        - "0x8b3511B4c4b68FCAfdCE7e6f91B925458bB64Ea6"
+        - "0x53091256EBD2D8aA37B45536A5FD864ca764f32f"
+        - "0x75981F958829Fa1Fe371605E6C5af5f9D9b8d59c"
+        - "0x1A18a8b96eac3F980133A18402d04194f1FAA4E7"
+        - "0x8607a7D180de23645Db594D90621d837749408d5"
+        - "0x8FB3f1305Fb57E322b8070E697202c68F17e0202"
+        - "0x743be0db30148336A3DB479f19d4e1828b293869"
 
   price_volume_liquidity:
     min_liquidity_usd: 5000           # filtre anti-rug : liquidité minimale
