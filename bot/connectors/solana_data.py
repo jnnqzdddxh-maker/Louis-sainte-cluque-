@@ -1,0 +1,114 @@
+"""Données de marché Solana — Birdeye (principal) avec repli Helius.
+
+NB: les endpoints publics de Birdeye/Helius évoluent régulièrement — vérifier
+la doc officielle avant mise en production, ces clients sont un point de
+départ fonctionnel, pas une garantie de compatibilité à long terme.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import requests
+
+from core.secrets import get_secret
+
+BIRDEYE_BASE_URL = "https://public-api.birdeye.so"
+HELIUS_BASE_URL = "https://api.helius.xyz"
+REQUEST_TIMEOUT_S = 10
+
+
+class MarketDataError(RuntimeError):
+    pass
+
+
+@dataclass
+class RawMarketData:
+    token_address: str
+    price_usd: float
+    liquidity_usd: float
+    volume_24h_usd: float
+    volume_avg_baseline_usd: float
+    top_holder_concentration_pct: float
+    breakout_detected: bool
+
+
+class BirdeyeClient:
+    def __init__(self, api_key: str | None = None):
+        self.api_key = api_key or get_secret("birdeye_api_key_env")
+
+    def _headers(self) -> dict:
+        return {"X-API-KEY": self.api_key, "x-chain": "solana"}
+
+    def get_token_overview(self, token_address: str) -> dict:
+        resp = requests.get(
+            f"{BIRDEYE_BASE_URL}/defi/token_overview",
+            params={"address": token_address},
+            headers=self._headers(),
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("success"):
+            raise MarketDataError(f"Birdeye token_overview a échoué pour {token_address}: {data}")
+        return data["data"]
+
+    def get_top_holders(self, token_address: str, limit: int = 10) -> list[dict]:
+        resp = requests.get(
+            f"{BIRDEYE_BASE_URL}/defi/v3/token/holder",
+            params={"address": token_address, "offset": 0, "limit": limit},
+            headers=self._headers(),
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("success"):
+            raise MarketDataError(f"Birdeye holders a échoué pour {token_address}: {data}")
+        return data["data"]["items"]
+
+    def fetch_raw_market_data(self, token_address: str) -> RawMarketData:
+        overview = self.get_token_overview(token_address)
+        try:
+            holders = self.get_top_holders(token_address, limit=1)
+            supply = overview.get("supply") or overview.get("totalSupply") or 0
+            top_pct = 0.0
+            if holders and supply:
+                top_pct = 100.0 * float(holders[0].get("uiAmount", 0)) / float(supply)
+        except (MarketDataError, requests.RequestException):
+            top_pct = 0.0  # anti-rug filter appliqué en aval : ne pas faire échouer le scoring
+
+        volume_24h = float(overview.get("v24hUSD", 0.0) or 0.0)
+        # Birdeye ne fournit pas de moyenne historique directe sur cet endpoint ;
+        # v24hChangePercent sert de proxy pour détecter un pic de volume.
+        vol_change_pct = float(overview.get("v24hChangePercent", 0.0) or 0.0)
+        baseline = volume_24h / max(1.0 + vol_change_pct / 100, 0.01)
+
+        price_change_1h = float(overview.get("priceChange1hPercent", 0.0) or 0.0)
+
+        return RawMarketData(
+            token_address=token_address,
+            price_usd=float(overview.get("price", 0.0) or 0.0),
+            liquidity_usd=float(overview.get("liquidity", 0.0) or 0.0),
+            volume_24h_usd=volume_24h,
+            volume_avg_baseline_usd=baseline,
+            top_holder_concentration_pct=top_pct,
+            breakout_detected=price_change_1h > 0 and vol_change_pct > 0,
+        )
+
+
+class HeliusClient:
+    """Repli / complément : métadonnées de token et données wallets."""
+
+    def __init__(self, api_key: str | None = None):
+        self.api_key = api_key or get_secret("helius_api_key_env")
+
+    def get_asset(self, token_address: str) -> dict:
+        resp = requests.post(
+            f"{HELIUS_BASE_URL}/v0/token-metadata?api-key={self.api_key}",
+            json={"mintAccounts": [token_address]},
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        results = resp.json()
+        if not results:
+            raise MarketDataError(f"Helius token-metadata vide pour {token_address}")
+        return results[0]

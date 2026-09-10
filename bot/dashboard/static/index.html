@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bot de trading — surveillance</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 16px; background: #0b0e14; color: #e6e6e6; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: #8a93a6; font-size: 13px; margin-bottom: 20px; }
+  .banner { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-weight: 600; }
+  .banner.dry { background: #1f3a2e; color: #7fe0a8; }
+  .banner.live { background: #3a1f1f; color: #ff8a8a; }
+  .banner.halted { background: #4a1f1f; color: #ffb3b3; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 24px; }
+  .stat { background: #151922; border-radius: 8px; padding: 12px; }
+  .stat .label { font-size: 11px; color: #8a93a6; text-transform: uppercase; }
+  .stat .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 28px; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #232838; }
+  th { color: #8a93a6; font-weight: 500; }
+  .conf-tres_haute { color: #7fe0a8; }
+  .conf-haute { color: #a8d87f; }
+  .conf-moyenne { color: #e0c97f; }
+  .conf-faible { color: #8a93a6; }
+  .rejected { text-decoration: line-through; opacity: 0.5; }
+  #resetBtn { background: #3a1f1f; color: #ffb3b3; border: 1px solid #ff8a8a; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+  pre.log { background: #0e1118; padding: 10px; border-radius: 8px; max-height: 320px; overflow: auto; font-size: 11px; }
+</style>
+</head>
+<body>
+  <h1>Bot de trading crypto — dashboard de surveillance</h1>
+  <div class="sub">Rafraîchi toutes les 5s. Section 7 du cahier des charges : vérifier chaque décision avant d'augmenter le sizing.</div>
+
+  <div id="banner"></div>
+  <div class="grid" id="stats"></div>
+
+  <h2>Positions</h2>
+  <table id="positionsTable">
+    <thead><tr><th>Token</th><th>Chaîne</th><th>Confiance</th><th>Entrée</th><th>Restant %</th><th>Palier</th><th>SL verrouillé</th><th>Statut</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Candidats (scoring en direct)</h2>
+  <table id="candidatesTable">
+    <thead><tr><th>Token</th><th>Chaîne</th><th>Score</th><th>Confiance</th><th>Wallet</th><th>Marché</th><th>Twitter</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Log des décisions (dernières 200)</h2>
+  <pre class="log" id="decisionsLog"></pre>
+
+<script>
+async function fetchJson(url, opts) {
+  const r = await fetch(url, opts);
+  return r.json();
+}
+
+function fmt(n, d=4) {
+  return (typeof n === 'number') ? n.toFixed(d) : n;
+}
+
+async function refresh() {
+  const [status, positions, candidates, decisions] = await Promise.all([
+    fetchJson('/api/status'),
+    fetchJson('/api/positions'),
+    fetchJson('/api/candidates'),
+    fetchJson('/api/decisions?limit=200'),
+  ]);
+
+  const banner = document.getElementById('banner');
+  let bannerHtml = '';
+  bannerHtml += `<div class="banner ${status.dry_run ? 'dry' : 'live'}">${status.dry_run ? 'MODE DRY-RUN (simulation, aucun trade réel)' : 'MODE LIVE — trades réels actifs'}</div>`;
+  if (status.halted) {
+    bannerHtml += `<div class="banner halted">ARRÊT D'URGENCE ACTIF — ${status.halt_reason || ''}
+      <button id="resetBtn" onclick="doReset()">Reset manuel</button></div>`;
+  }
+  banner.innerHTML = bannerHtml;
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="label">Positions ouvertes</div><div class="value">${status.open_positions} / ${status.max_open_positions}</div></div>
+    <div class="stat"><div class="label">PnL du jour (€)</div><div class="value">${fmt(status.daily_pnl_eur, 2)}</div></div>
+  `;
+
+  const posBody = document.querySelector('#positionsTable tbody');
+  posBody.innerHTML = positions.map(p => `
+    <tr>
+      <td>${p.token_id}</td>
+      <td>${p.chain}</td>
+      <td class="conf-${p.confidence}">${p.confidence}</td>
+      <td>${fmt(p.entry_price)}</td>
+      <td>${fmt(p.remaining_pct, 1)}%</td>
+      <td>${p.stage_index}</td>
+      <td>${p.locked_sl_price ? fmt(p.locked_sl_price) : '—'}</td>
+      <td>${p.closed ? 'fermée (' + (p.close_reason || '') + ')' : 'ouverte'}</td>
+    </tr>
+  `).join('');
+
+  const candBody = document.querySelector('#candidatesTable tbody');
+  candBody.innerHTML = candidates.map(c => `
+    <tr class="${c.rejected_anti_rug ? 'rejected' : ''}" title="${c.rejection_reason || ''}">
+      <td>${c.token_address}</td>
+      <td>${c.chain}</td>
+      <td>${fmt(c.total_score, 1)}</td>
+      <td class="conf-${c.confidence}">${c.confidence}</td>
+      <td>${fmt(c.wallet_subscore, 0)}</td>
+      <td>${fmt(c.market_subscore, 0)}</td>
+      <td>${fmt(c.twitter_subscore, 0)}</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('decisionsLog').textContent =
+    decisions.slice().reverse().map(d => JSON.stringify(d)).join('\n');
+}
+
+async function doReset() {
+  const confirmedBy = prompt('Confirmer le reset manuel — entrer votre identifiant (email) :');
+  if (!confirmedBy) return;
+  const res = await fetchJson('/api/risk/reset', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({confirmed_by: confirmedBy}),
+  });
+  if (res.error) alert(res.error);
+  refresh();
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

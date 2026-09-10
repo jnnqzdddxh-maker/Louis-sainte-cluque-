@@ -1,0 +1,183 @@
+# ============================================================================
+# Configuration du bot de trading — TOUS les seuils vivent ici.
+# Ne jamais coder un seuil en dur dans core/ ou connectors/ : le lire d'ici.
+# ============================================================================
+
+# mode: "dry_run" (obligatoire au démarrage) ou "live".
+# Le passage en "live" est en plus bloqué au niveau code (main.py) tant que
+# la variable d'environnement BOT_CONFIRM_LIVE=I_UNDERSTAND_THE_RISK n'est
+# pas définie explicitement. Voir README section "Passage en live".
+mode: dry_run
+
+chains:
+  solana:
+    enabled: true
+    execution_connector: jupiter          # bot/connectors/solana_jupiter.py
+    market_data_provider: birdeye         # birdeye | helius
+    wallet_data_provider: helius
+    rpc_url_env: SOLANA_RPC_URL           # nom de la variable d'env, pas la valeur
+    slippage_bps: 150                     # 1.5%
+    wallet_public_key: ""                 # clé PUBLIQUE du wallet d'exécution (pas secrète) — à renseigner
+
+  robinhood:
+    enabled: true
+    chain_id: 4663
+    execution_connector: uniswap_v4_router  # bot/connectors/robinhood_rpc.py
+    market_data_provider: dexpaprika        # dexpaprika | bitquery
+    wallet_data_provider: bitquery
+    rpc_url_env: ROBINHOOD_RPC_URL
+    slippage_bps: 150
+    wallet_address: ""                    # adresse PUBLIQUE du wallet d'exécution (pas secrète) — à renseigner
+    universal_router_address: ""          # adresse déployée du Universal Router v4 sur Robinhood Chain — à confirmer
+    # Robinhood Chain est très jeune (quelques semaines de mainnet) :
+    # gas ~gratuit les 90 premiers jours, outillage moins mature que Solana.
+    # -> exiger plus de cycles de dry-run avant d'y engager du capital réel.
+    min_dry_run_days_before_live: 7
+    gas_free_period_days: 90
+
+# ----------------------------------------------------------------------------
+# Moteur de scoring — score de confiance 0-100 par token candidat
+# ----------------------------------------------------------------------------
+scoring:
+  weights:
+    wallet_tracker: 0.45              # signal fort
+    price_volume_liquidity: 0.40      # signal fort
+    twitter_news: 0.15                # signal faible-moyen
+
+  wallet_tracker:
+    window_minutes: 10                # fenêtre "plusieurs wallets achètent le même token"
+    min_wallets_for_full_signal: 3    # nb de wallets suivis atteignant le score max du signal
+    min_wallets_to_trigger: 2         # en dessous, le signal wallet est nul
+    tracked_wallets:
+      solana: []                      # à remplir : adresses de wallets performants suivis
+      robinhood: []
+
+  price_volume_liquidity:
+    min_liquidity_usd: 5000           # filtre anti-rug : liquidité minimale
+    max_top_holder_concentration_pct: 30   # filtre anti-rug : concentration max du top holder (hors LP/burn)
+    volume_spike_window_minutes: 15
+    volume_spike_multiplier: 2.0      # volume actuel / volume moyen historique pour "momentum"
+    breakout_lookback_minutes: 60     # fenêtre pour détecter une cassure de résistance
+
+  twitter:
+    poll_interval_minutes: 5          # veille périodique, pas de streaming temps réel
+    tracked_accounts: []              # à remplir
+    keywords: []                      # à remplir
+    max_signal_age_minutes: 30        # une mention plus vieille que ça ne compte plus
+
+  confidence_thresholds:
+    # score total (0-100) -> niveau de confiance
+    low_max: 39         # 0-39   -> faible
+    medium_max: 64       # 40-64  -> moyenne
+    high_max: 84         # 65-84  -> haute
+    # >= 85                        -> très haute (seul niveau qui débloque le palier x100)
+
+# ----------------------------------------------------------------------------
+# Sizing et garde-fous globaux
+# ----------------------------------------------------------------------------
+sizing:
+  position_size_min_eur: 20
+  position_size_max_eur: 50
+  # Phase 1 du plan de validation (section 7) : ne pas dépasser le min tant
+  # que le comportement réel n'est pas éprouvé. Ce flag force 20€ partout
+  # même si position_size_max_eur est plus haut ; à désactiver à la main.
+  force_minimum_size_until_proven: true
+
+risk:
+  # Stop-loss catastrophe, actif uniquement AVANT le palier x2.
+  # Protège contre un rug direct sans sortir sur du bruit normal.
+  catastrophe_stop_loss_pct: -65     # doit rester entre -60 et -70
+
+  # Plafond de perte journalière global : point ouvert (section 8),
+  # valeur volontairement conservatrice en attendant une décision explicite.
+  # Le bot s'arrête et repasse en pause manuelle si la perte du jour dépasse
+  # CE MONTANT ou CE POURCENTAGE, selon ce qui est atteint en premier.
+  daily_loss_cap_eur: 100
+  daily_loss_cap_pct_of_capital: 10
+  daily_loss_cap_action: halt_and_require_manual_validation
+  # Capital total engagé sur le bot — sert de base au plafond en %.
+  # Point ouvert (section 8) : ajuster à la vraie taille du capital engagé.
+  capital_eur: 1000
+
+  # Nombre max de positions ouvertes simultanément — point ouvert (section 8),
+  # valeur de départ prudente à ajuster selon le capital total engagé.
+  max_open_positions: 5
+
+  # Kill-switch : une fois déclenché (perte journalière ou erreur système
+  # critique), le bot ne reprend QUE via reset manuel explicite (voir
+  # core/risk_guard.py -> RiskGuard.manual_reset()).
+  require_manual_reset_after_halt: true
+
+# ----------------------------------------------------------------------------
+# Stratégie de sortie — paliers de sécurisation en escalier (section 5)
+# ----------------------------------------------------------------------------
+exit_strategy:
+  # % de trailing take-profit entre les paliers, selon le niveau de
+  # confiance INITIAL du token (fixé à l'entrée, ne change jamais en cours de vie).
+  trailing_pct_by_confidence:
+    faible: 10
+    moyenne: 18
+    haute: 25
+    tres_haute: 25
+
+  # Trailing élargi une fois x20 dépassé, réservé à la confiance très haute.
+  trailing_pct_beyond_x20_tres_haute: 50
+
+  # SL manuel/large appliqué au-delà de x20 quand il n'y a pas de palier x100
+  # (confiance faible/moyenne), et sur le tout dernier reliquat après x100.
+  manual_trailing_pct_beyond_cap: 50
+
+  tiers:
+    - multiple: 2
+      sell_pct_of_remaining: 40
+      on_remainder: breakeven          # SL remonte au prix d'entrée net des frais
+    - multiple: 5
+      sell_pct_of_remaining: 0         # pas de vente, juste verrouillage du SL
+      on_remainder: lock_x2
+    - multiple: 10
+      sell_pct_of_remaining: 75
+      on_remainder: lock_x5
+    - multiple: 20
+      sell_pct_of_remaining: 75
+      on_remainder: lock_x10
+    - multiple: 100
+      sell_pct_of_remaining: 75
+      on_remainder: manual_beyond      # gestion manuelle possible au-delà
+      requires_confidence: tres_haute  # ne se déclenche QUE si confiance initiale = très haute
+
+execution:
+  # Un token de confiance "faible" reste affiché au dashboard (transparence)
+  # mais n'est jamais tradé, ni en dry-run ni en live.
+  min_confidence_to_trade: moyenne
+  price_poll_interval_seconds: 15
+  candidate_rescan_interval_seconds: 30
+
+fees:
+  # Point ouvert (section 8) : à vérifier précisément sur Robinhood Chain
+  # une fois la période de gas gratuit terminée (90 jours).
+  include_fees_in_breakeven: true
+  estimated_swap_fee_pct:
+    solana: 0.1
+    robinhood: 0.0   # gratuit pendant gas_free_period_days, à réévaluer après
+
+# ----------------------------------------------------------------------------
+# Secrets — NE JAMAIS mettre de vraie clé ici. Ce ne sont que des noms de
+# variables d'environnement, lues via bot/core/secrets.py.
+# ----------------------------------------------------------------------------
+secrets:
+  solana_wallet_private_key_env: SOLANA_WALLET_PRIVATE_KEY
+  robinhood_wallet_private_key_env: ROBINHOOD_WALLET_PRIVATE_KEY
+  birdeye_api_key_env: BIRDEYE_API_KEY
+  helius_api_key_env: HELIUS_API_KEY
+  bitquery_api_key_env: BITQUERY_API_KEY
+  dexpaprika_api_key_env: DEXPAPRIKA_API_KEY
+
+dashboard:
+  host: 127.0.0.1
+  port: 8787
+
+logging:
+  # Chemins relatifs au répertoire de lancement — les scripts (dry_run.py,
+  # main.py, pytest) sont prévus pour être lancés depuis l'intérieur de bot/.
+  decisions_log_path: logs/decisions.jsonl
+  state_db_path: logs/state.sqlite3

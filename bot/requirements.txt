@@ -1,0 +1,20 @@
+# Cœur — nécessaire en dry-run comme en live
+pyyaml>=6.0
+requests>=2.31
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-dotenv>=1.0
+
+# Tests
+pytest>=8.0
+
+# ---------------------------------------------------------------------------
+# Exécution LIVE uniquement (signature/envoi de transactions réelles).
+# Pas nécessaire pour dry_run.py. Installer seulement avant un passage en
+# mode live sur la chaîne concernée.
+# ---------------------------------------------------------------------------
+# Solana (connectors/solana_jupiter.py) :
+#   solders>=0.21
+#   solana>=0.34
+# Robinhood Chain / EVM (connectors/robinhood_rpc.py) :
+#   eth-account>=0.11

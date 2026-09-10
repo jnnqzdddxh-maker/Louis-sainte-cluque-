@@ -1,0 +1,15 @@
+# --- Node (app existante à la racine) ---------------------------------
+node_modules/
+uploads/
+.env
+.env.*
+!.env.example
+
+# --- Python / bot de trading (bot/) -------------------------------------
+__pycache__/
+*.pyc
+.pytest_cache/
+bot/logs/*.jsonl
+bot/logs/*.sqlite3
+.venv/
+venv/
