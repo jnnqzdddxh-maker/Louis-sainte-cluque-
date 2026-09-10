@@ -94,6 +94,10 @@ class TradingEngine:
         self.state_store = state_store or StateStore(config=self.cfg)
         self.candidates: dict[str, Candidate] = {}
         self._token_to_position: dict[str, str] = {}
+        excluded_cfg = self.cfg.get("market_scan", {}).get("excluded_tokens", {})
+        self._excluded_tokens: dict[str, set[str]] = {
+            chain: set(addresses) for chain, addresses in excluded_cfg.items()
+        }
 
         self.logger.log("engine_start", dry_run=dry_run, capital_eur=capital_eur)
 
@@ -125,6 +129,9 @@ class TradingEngine:
     def _maybe_score_candidate(
         self, token_address: str, chain: str, now: datetime, require_wallet_trigger: bool
     ) -> None:
+        if token_address in self._excluded_tokens.get(chain, set()):
+            return  # stablecoin/actif de référence — jamais scoré, jamais affiché
+
         wallet_signal = self.wallet_tracker.signal_for_token(token_address, now)
         if require_wallet_trigger:
             min_trigger = self.cfg["scoring"]["wallet_tracker"]["min_wallets_to_trigger"]

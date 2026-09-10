@@ -83,3 +83,13 @@ def test_wallet_triggered_path_still_requires_the_threshold(tmp_path):
     engine._maybe_score_candidate("TOKEN_NO_WALLETS", "solana", NOW, require_wallet_trigger=True)
 
     assert "TOKEN_NO_WALLETS" not in engine.candidates
+
+
+def test_excluded_stablecoin_is_never_scored(tmp_path):
+    engine = _engine(tmp_path, {"solana": _strong_market_fetcher})
+    usdc = CFG["market_scan"]["excluded_tokens"]["solana"][0]
+
+    engine.on_market_scan_hit(usdc, "solana", NOW)
+
+    assert usdc not in engine.candidates
+    assert len(engine.position_manager.positions) == 0

@@ -190,6 +190,17 @@ market_scan:
   interval_seconds: 300          # toutes les 5 min, pour ne pas cramer le quota API gratuit
   tokens_per_scan: 20            # nb de tokens/pools les plus actifs récupérés à chaque scan
 
+  # Stablecoins et actifs de référence à ignorer complètement (jamais scorés,
+  # jamais affichés) : ils dominent les classements "plus gros volume" parce
+  # qu'ils servent de monnaie de cotation partout, mais un stablecoin ne
+  # bougera jamais assez pour que la stratégie en escalier x2->x100 ait un
+  # sens. S'applique aussi aux tokens repérés via le wallet tracker.
+  excluded_tokens:
+    solana:
+      - "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # USDC
+      - "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"  # USDT
+    robinhood: []  # à compléter si un stablecoin apparaît dans le bruit du scan
+
 fees:
   # Point ouvert (section 8) : à vérifier précisément sur Robinhood Chain
   # une fois la période de gas gratuit terminée (90 jours).
