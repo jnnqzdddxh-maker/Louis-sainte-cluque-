@@ -26,7 +26,12 @@ from connectors.robinhood_rpc import JsonRpcClient, PoolKey
 from connectors.execution_handlers import RobinhoodExecutionHandler, SolanaExecutionHandler
 from connectors.solana_data import BirdeyeClient
 from dashboard.app import create_app
-from dry_run import build_market_data_fetchers, poll_robinhood_wallets_loop, price_tick_loop
+from dry_run import (
+    build_market_data_fetchers,
+    poll_robinhood_wallets_loop,
+    poll_solana_wallets_loop,
+    price_tick_loop,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("main")
@@ -140,6 +145,7 @@ async def run() -> None:
     )
     await asyncio.gather(
         server.serve(),
+        poll_solana_wallets_loop(engine, cfg),
         poll_robinhood_wallets_loop(engine, cfg),
         price_tick_loop(engine, cfg),
     )

@@ -1,6 +1,13 @@
 """Suivi des wallets performants — fenêtre glissante d'achats groupés.
 
-Solana : alimenté en temps réel par les webhooks Helius (push).
+Solana : deux modes possibles.
+  - Webhooks Helius (push, temps réel) : nécessite une adresse publique
+    joignable par Helius (serveur avec IP/domaine public, ou tunnel type
+    ngrok) — voir dashboard/app.py:/webhooks/helius.
+  - Polling périodique de l'historique Helius (voir poll_solana_wallet_buys
+    ci-dessous) : fonctionne depuis n'importe quelle machine, y compris un
+    PC perso sans adresse publique — c'est le mode utilisé par défaut par
+    dry_run.py/main.py.
 Robinhood Chain : alimenté par polling périodique de Bitquery (pas de
 webhooks disponibles à ce jour sur une chaîne aussi récente).
 
@@ -13,9 +20,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+import requests
+
 from core.config import load_config
 from core.scoring import WalletTrackerSignal
 from connectors.robinhood_data import BitqueryClient
+from connectors.solana_data import HELIUS_BASE_URL, REQUEST_TIMEOUT_S
 
 
 @dataclass(frozen=True)
@@ -74,6 +84,42 @@ def parse_helius_webhook_payload(payload: list[dict], tracked_wallets: set[str])
                         timestamp=ts,
                     )
                 )
+    return events
+
+
+def poll_solana_wallet_buys(
+    helius_api_key: str,
+    tracked_wallets: list[str],
+    since: datetime,
+    limit_per_wallet: int = 20,
+) -> list[WalletBuyEvent]:
+    """Interroge l'historique de transactions "enhanced" de Helius pour
+    chaque wallet suivi (même format de données que les webhooks, donc on
+    réutilise parse_helius_webhook_payload). Ne nécessite aucune adresse
+    publique — fonctionne depuis n'importe quel PC.
+
+    Simplification assumée : Helius pagine par signature, pas par date ; on
+    récupère juste les `limit_per_wallet` transactions les plus récentes à
+    chaque appel et on filtre par timestamp > since. Un wallet très actif
+    au-delà de cette limite entre deux polls pourrait faire manquer un
+    achat plus ancien — acceptable pour une fenêtre de poll courte (voir
+    execution.candidate_rescan_interval_seconds).
+    """
+    events: list[WalletBuyEvent] = []
+    for wallet in tracked_wallets:
+        try:
+            resp = requests.get(
+                f"{HELIUS_BASE_URL}/v0/addresses/{wallet}/transactions",
+                params={"api-key": helius_api_key, "limit": limit_per_wallet},
+                timeout=REQUEST_TIMEOUT_S,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+        except requests.RequestException:
+            continue  # un wallet en échec ne doit pas bloquer les autres
+        for event in parse_helius_webhook_payload(payload, {wallet}):
+            if event.timestamp > since:
+                events.append(event)
     return events
 
 

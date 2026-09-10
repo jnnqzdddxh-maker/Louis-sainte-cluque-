@@ -25,9 +25,10 @@ import uvicorn
 
 from core.config import load_config
 from core.engine import TradingEngine
+from core.secrets import get_secret
 from connectors.robinhood_data import BitqueryClient, DexPaprikaClient
 from connectors.solana_data import BirdeyeClient
-from connectors.wallet_tracker import poll_robinhood_wallet_buys
+from connectors.wallet_tracker import poll_robinhood_wallet_buys, poll_solana_wallet_buys
 from dashboard.app import create_app
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -71,6 +72,27 @@ async def poll_robinhood_wallets_loop(engine: TradingEngine, cfg: dict) -> None:
         await asyncio.sleep(interval)
 
 
+async def poll_solana_wallets_loop(engine: TradingEngine, cfg: dict) -> None:
+    if not cfg["chains"]["solana"]["enabled"]:
+        return
+    tracked = cfg["scoring"]["wallet_tracker"]["tracked_wallets"]["solana"]
+    if not tracked:
+        log.warning("aucun wallet Solana suivi dans config.yaml — poll désactivé")
+        return
+    helius_api_key = get_secret("helius_api_key_env")
+    interval = cfg["execution"]["candidate_rescan_interval_seconds"]
+    since = datetime.now(timezone.utc)
+    while True:
+        try:
+            events = poll_solana_wallet_buys(helius_api_key, tracked, since)
+            since = datetime.now(timezone.utc)
+            for event in events:
+                engine.on_wallet_buy_event(event)
+        except Exception:
+            log.exception("échec du poll wallets Solana")
+        await asyncio.sleep(interval)
+
+
 async def price_tick_loop(engine: TradingEngine, cfg: dict) -> None:
     interval = cfg["execution"]["price_poll_interval_seconds"]
     while True:
@@ -90,8 +112,6 @@ async def run() -> None:
     engine = TradingEngine(dry_run=True, market_data_fetchers=fetchers, capital_eur=cfg["risk"]["capital_eur"])
 
     tracked_solana = set(cfg["scoring"]["wallet_tracker"]["tracked_wallets"]["solana"])
-    if not tracked_solana:
-        log.warning("aucun wallet Solana suivi dans config.yaml — le webhook Helius n'aura aucun effet")
     app = create_app(engine, tracked_solana_wallets=tracked_solana)
 
     server_config = uvicorn.Config(
@@ -106,6 +126,7 @@ async def run() -> None:
     )
     await asyncio.gather(
         server.serve(),
+        poll_solana_wallets_loop(engine, cfg),
         poll_robinhood_wallets_loop(engine, cfg),
         price_tick_loop(engine, cfg),
     )

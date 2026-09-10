@@ -104,7 +104,7 @@ bot/
     solana_data.py        # données marché Solana (Birdeye/Helius)
     robinhood_rpc.py        # RPC direct + Uniswap v4 (Robinhood Chain)
     robinhood_data.py        # données marché Robinhood Chain (DexPaprika/Bitquery)
-    wallet_tracker.py         # suivi des wallets performants
+    wallet_tracker.py         # suivi des wallets performants (polling Helius/Bitquery, fonctionne sur un PC perso sans adresse publique)
     twitter_watch.py           # veille périodique (5 min), pas de streaming
     execution_handlers.py       # branche core.engine sur les connecteurs d'exécution
   dashboard/
