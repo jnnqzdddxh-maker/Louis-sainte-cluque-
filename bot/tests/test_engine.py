@@ -80,7 +80,9 @@ def test_market_scan_hit_can_still_open_a_position_at_moyenne_confidence(tmp_pat
 
 def test_wallet_triggered_path_still_requires_the_threshold(tmp_path):
     engine = _engine(tmp_path, {"solana": _strong_market_fetcher})
-    engine._maybe_score_candidate("TOKEN_NO_WALLETS", "solana", NOW, require_wallet_trigger=True)
+    engine._maybe_score_candidate(
+        "TOKEN_NO_WALLETS", "solana", NOW, require_wallet_trigger=True, source="wallet_tracker"
+    )
 
     assert "TOKEN_NO_WALLETS" not in engine.candidates
 

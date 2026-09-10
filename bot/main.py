@@ -28,7 +28,8 @@ from connectors.solana_data import BirdeyeClient
 from dashboard.app import create_app
 from dry_run import (
     build_market_data_fetchers,
-    market_scan_loop,
+    market_scan_new_listings_loop,
+    market_scan_trending_loop,
     poll_robinhood_wallets_loop,
     poll_solana_wallets_loop,
     price_tick_loop,
@@ -148,7 +149,8 @@ async def run() -> None:
         server.serve(),
         poll_solana_wallets_loop(engine, cfg),
         poll_robinhood_wallets_loop(engine, cfg),
-        market_scan_loop(engine, cfg),
+        market_scan_new_listings_loop(engine, cfg),
+        market_scan_trending_loop(engine, cfg),
         price_tick_loop(engine, cfg),
     )
 

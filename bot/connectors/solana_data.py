@@ -65,6 +65,24 @@ class BirdeyeClient:
             raise MarketDataError(f"Birdeye holders a échoué pour {token_address}: {data}")
         return data["data"]["items"]
 
+    def get_new_listings(self, limit: int = 20) -> list[str]:
+        """Tokens tout juste listés (nouvelle liquidité ajoutée), avant même
+        d'avoir accumulé du volume — c'est ce qui permet de rentrer TÔT,
+        contrairement à get_trending_tokens qui ne remonte que ce qui a déjà
+        du volume (donc probablement déjà bien monté).
+        """
+        resp = requests.get(
+            f"{BIRDEYE_BASE_URL}/defi/v2/tokens/new_listing",
+            params={"limit": limit},
+            headers=self._headers(),
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("success"):
+            raise MarketDataError(f"Birdeye new_listing a échoué: {data}")
+        return [t["address"] for t in data["data"]["items"]]
+
     def get_trending_tokens(self, limit: int = 20) -> list[str]:
         """Liste de tokens en tendance (volume/rang), indépendamment de tout
         wallet suivi — sert au scan de marché autonome (voir

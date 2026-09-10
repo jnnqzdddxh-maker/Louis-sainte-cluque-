@@ -186,9 +186,22 @@ execution:
 # juste à 0 la plupart du temps) — voir core/engine.py:on_market_scan_hit
 # pour la conséquence sur le score max atteignable.
 market_scan:
-  enabled: true
-  interval_seconds: 300          # toutes les 5 min, pour ne pas cramer le quota API gratuit
-  tokens_per_scan: 20            # nb de tokens/pools les plus actifs récupérés à chaque scan
+  # "Nouveaux tokens" : la priorité pour catcher tôt (x2->x100 suppose de
+  # rentrer avant que le token ait déjà pris son envol). Intervalle plus
+  # court : c'est celui qui compte le plus pour la stratégie.
+  new_listings:
+    enabled: true
+    interval_seconds: 60
+    tokens_per_scan: 20
+
+  # "Tendances" (plus gros volume actuel) : complément, filet de sécurité
+  # qui peut aussi remonter un token qui accélère fort après son lancement.
+  # Remonte souvent des tokens déjà bien montés — x100 probablement déjà
+  # raté dessus, mais x2-x5 peut rester pertinent.
+  trending:
+    enabled: true
+    interval_seconds: 300
+    tokens_per_scan: 20
 
   # Stablecoins et actifs de référence à ignorer complètement (jamais scorés,
   # jamais affichés) : ils dominent les classements "plus gros volume" parce

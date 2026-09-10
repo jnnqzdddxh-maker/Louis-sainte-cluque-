@@ -55,6 +55,21 @@ class DexPaprikaClient:
         resp.raise_for_status()
         return resp.json()
 
+    def get_new_pools(self, limit: int = 20) -> list[str]:
+        """Pools tout juste créés, avant même d'avoir accumulé du volume —
+        permet de rentrer TÔT, contrairement à get_trending_pools qui ne
+        remonte que ce qui a déjà du volume (donc probablement déjà monté).
+        """
+        resp = requests.get(
+            f"{DEXPAPRIKA_BASE_URL}/networks/{self.network_id}/pools",
+            params={"order_by": "created_at", "sort": "desc", "limit": limit},
+            headers=self._headers(),
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return [p["id"] for p in data.get("pools", [])]
+
     def get_trending_pools(self, limit: int = 20) -> list[str]:
         """Liste des pools les plus actifs (triés par volume), indépendamment
         de tout wallet suivi — sert au scan de marché autonome (voir

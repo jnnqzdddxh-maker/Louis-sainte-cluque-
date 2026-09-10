@@ -116,17 +116,23 @@ bot/
   main.py                     # dry-run par défaut, live sur confirmation explicite
 ```
 
-## Découverte de candidats : deux modes en parallèle
+## Découverte de candidats : trois modes en parallèle
 
 - **Wallet tracker** (`scoring.wallet_tracker.tracked_wallets`) — un token
   devient candidat quand assez de wallets suivis l'achètent dans la
   fenêtre configurée. C'est le mode d'origine du cahier des charges.
-- **Scan de marché autonome** (`market_scan` dans `config.yaml`) — le bot
-  regarde aussi, à intervalle régulier, les tokens/pools les plus actifs du
-  moment (les plus gros volumes), sans attendre qu'un wallet suivi achète
-  quoi que ce soit. Voir `core/engine.py:on_market_scan_hit`.
+- **Scan "nouveaux tokens"** (`market_scan.new_listings`) — repère les
+  tokens/pools tout juste créés, avant même qu'ils aient du volume. C'est le
+  mode prioritaire pour la stratégie x2->x100, qui suppose de rentrer tôt.
+  Tourne toutes les `interval_seconds` (60s par défaut).
+- **Scan "tendances"** (`market_scan.trending`) — complément qui regarde les
+  tokens/pools avec le plus gros volume actuel. Utile en filet de sécurité,
+  mais remonte souvent des tokens déjà bien montés (x100 probablement déjà
+  raté dessus, x2-x5 peut rester pertinent). Tourne toutes les 5 min par
+  défaut. Chaque candidat garde une étiquette `source` (visible dans le
+  dashboard et les logs) indiquant lequel des trois modes l'a détecté.
 
-Les deux tournent en même temps et alimentent le même scoring. Différence
+Les trois tournent en même temps et alimentent le même scoring. Différence
 importante : un token trouvé uniquement par le scan de marché (aucun wallet
 suivi ne l'a acheté) plafonne à un score d'environ 55/100 avec les poids
 par défaut (40 marché + 15 twitter max, le wallet tracker pesant 45%) — donc

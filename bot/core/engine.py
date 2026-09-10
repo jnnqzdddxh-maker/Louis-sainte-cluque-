@@ -67,6 +67,7 @@ class Candidate:
     chain: str
     score: ScoreResult
     scored_at: datetime
+    source: str = "wallet_tracker"  # wallet_tracker | market_scan_trending | market_scan_new_listing
 
 
 class TradingEngine:
@@ -105,15 +106,26 @@ class TradingEngine:
     def on_wallet_buy_event(self, event: WalletBuyEvent) -> None:
         self.wallet_tracker.ingest(event)
         self._maybe_score_candidate(
-            event.token_address, event.chain, event.timestamp, require_wallet_trigger=True
+            event.token_address,
+            event.chain,
+            event.timestamp,
+            require_wallet_trigger=True,
+            source="wallet_tracker",
         )
 
     # -- ingestion d'un token repéré par le scan de marché autonome --------
-    def on_market_scan_hit(self, token_address: str, chain: str, now: datetime | None = None) -> None:
+    def on_market_scan_hit(
+        self, token_address: str, chain: str, now: datetime | None = None, source: str = "market_scan"
+    ) -> None:
         """Contrairement à on_wallet_buy_event, ne dépend d'aucun wallet
         suivi : le token est scoré directement sur ses signaux marché/Twitter
         (le signal wallet est quand même calculé — il pourra être non nul si
         un wallet suivi a par ailleurs acheté ce même token).
+
+        `source` distingue "market_scan_trending" (plus gros volume actuel)
+        et "market_scan_new_listing" (tokens tout juste créés, avant même
+        d'avoir du volume) — affiché dans les logs pour comprendre d'où vient
+        chaque candidat.
 
         Conséquence assumée des poids de scoring (wallet 45% / marché 40% /
         twitter 15%) : un token découvert SANS aucune corroboration de wallet
@@ -123,11 +135,15 @@ class TradingEngine:
         la confiance, pas juste un pic de volume.
         """
         self._maybe_score_candidate(
-            token_address, chain, now or datetime.now(timezone.utc), require_wallet_trigger=False
+            token_address,
+            chain,
+            now or datetime.now(timezone.utc),
+            require_wallet_trigger=False,
+            source=source,
         )
 
     def _maybe_score_candidate(
-        self, token_address: str, chain: str, now: datetime, require_wallet_trigger: bool
+        self, token_address: str, chain: str, now: datetime, require_wallet_trigger: bool, source: str
     ) -> None:
         if token_address in self._excluded_tokens.get(chain, set()):
             return  # stablecoin/actif de référence — jamais scoré, jamais affiché
@@ -155,8 +171,10 @@ class TradingEngine:
         twitter_signal = self.twitter_watcher.signal_for_token(token_address, now)
 
         score = compute_score(wallet_signal, market_signal, twitter_signal, self.cfg)
-        self.candidates[token_address] = Candidate(token_address, chain, score, now)
-        self.logger.log("candidate_scored", token_address=token_address, chain=chain, score=score)
+        self.candidates[token_address] = Candidate(token_address, chain, score, now, source=source)
+        self.logger.log(
+            "candidate_scored", token_address=token_address, chain=chain, score=score, source=source
+        )
 
         if score.rejected_anti_rug:
             return

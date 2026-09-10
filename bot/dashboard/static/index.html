@@ -43,7 +43,7 @@
 
   <h2>Candidats (scoring en direct)</h2>
   <table id="candidatesTable">
-    <thead><tr><th>Token</th><th>Chaîne</th><th>Score</th><th>Confiance</th><th>Wallet</th><th>Marché</th><th>Twitter</th></tr></thead>
+    <thead><tr><th>Token</th><th>Chaîne</th><th>Source</th><th>Score</th><th>Confiance</th><th>Wallet</th><th>Marché</th><th>Twitter</th></tr></thead>
     <tbody></tbody>
   </table>
 
@@ -101,6 +101,7 @@ async function refresh() {
     <tr class="${c.rejected_anti_rug ? 'rejected' : ''}" title="${c.rejection_reason || ''}">
       <td>${c.token_address}</td>
       <td>${c.chain}</td>
+      <td>${c.source}</td>
       <td>${fmt(c.total_score, 1)}</td>
       <td class="conf-${c.confidence}">${c.confidence}</td>
       <td>${fmt(c.wallet_subscore, 0)}</td>

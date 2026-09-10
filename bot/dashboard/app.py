@@ -54,6 +54,7 @@ def create_app(engine: TradingEngine, tracked_solana_wallets: set[str] | None = 
                 {
                     "token_address": c.token_address,
                     "chain": c.chain,
+                    "source": c.source,
                     "scored_at": c.scored_at.isoformat(),
                     "total_score": c.score.total_score,
                     "confidence": c.score.confidence.value,
