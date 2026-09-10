@@ -49,7 +49,20 @@ scoring:
     min_wallets_for_full_signal: 3    # nb de wallets suivis atteignant le score max du signal
     min_wallets_to_trigger: 2         # en dessous, le signal wallet est nul
     tracked_wallets:
-      solana: []                      # à remplir : adresses de wallets performants suivis
+      # Fournis par l'utilisateur (recherche GMGN/Kolscan) le 11/09/2026.
+      # Format vérifié (base58, longueur valide) mais performance réelle non
+      # auditée par le bot lui-même — à surveiller dans les logs de dry-run.
+      solana:
+        - "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f"
+        - "498g1rVnFcnjBjpfw1xyqA1WvgQXUU8RWuELjxkjAayQ"
+        - "FixukbsKfJZEr996ubcWvwTAt1b6QJ2SfP3FJsBSbH33"
+        - "4vw54BmAogeRV3vPKWyFet5yf8DTLcREzdSzx4rw9Ud9"
+        - "ardinRsN1mNYVeoJWTBsWeYeXvuR9UUDGMsCDKpb6AT"
+        - "suqh5sHtr8HyJ7q8scBimULPkPpA557prMG47xCHQfK"
+        - "CKcWAvvDYr2H3Wj3ACr5zRynrYRSzir2zE5bTf8wiUmT"
+        - "Bi4rd5FH5bYEN8scZ7wevxNZyNmKHdaBcvewdPFxYdLt"
+        - "BQVz7fQ1WsQmSTMY3umdPEPPTm1sdcBcX9sP7o6kPRmB"
+        - "F9zT1F46HAoPanR4NC1Yw7TyP8Z9tCavTe48mrzK7aN4"
       robinhood: []
 
   price_volume_liquidity:
