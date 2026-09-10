@@ -11,7 +11,7 @@ import requests
 from core.secrets import get_secret
 
 DEXPAPRIKA_BASE_URL = "https://api.dexpaprika.com"
-BITQUERY_GRAPHQL_URL = "https://graphql.bitquery.io"
+BITQUERY_GRAPHQL_URL = "https://streaming.bitquery.io/graphql"
 REQUEST_TIMEOUT_S = 10
 
 ROBINHOOD_CHAIN_ID = 4663
@@ -74,8 +74,15 @@ class DexPaprikaClient:
 
 
 class BitqueryClient:
-    """GraphQL — sert de repli pour les données marché et de source
+    """GraphQL (API v2) — sert de repli pour les données marché et de source
     principale pour le décodage des transferts/trades (wallet tracker).
+
+    Auth v2 : Authorization: Bearer <token OAuth ory_at_...> sur
+    streaming.bitquery.io. Ce token expire (voir leur doc, ~30 jours) — ce
+    n'est pas une clé API permanente. Au-delà, il faut soit le renouveler à
+    la main depuis le dashboard Bitquery, soit passer par un échange
+    client_id/secret (non géré ici, à ajouter si besoin d'un renouvellement
+    automatique).
     """
 
     def __init__(self, api_key: str | None = None):
@@ -85,7 +92,7 @@ class BitqueryClient:
         resp = requests.post(
             BITQUERY_GRAPHQL_URL,
             json={"query": graphql_query, "variables": variables or {}},
-            headers={"X-API-KEY": self.api_key, "Content-Type": "application/json"},
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
             timeout=REQUEST_TIMEOUT_S,
         )
         resp.raise_for_status()
