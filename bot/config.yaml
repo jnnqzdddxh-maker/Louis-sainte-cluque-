@@ -210,16 +210,20 @@ market_scan:
     interval_seconds: 300
     tokens_per_scan: 20
 
-  # Stablecoins et actifs de référence à ignorer complètement (jamais scorés,
-  # jamais affichés) : ils dominent les classements "plus gros volume" parce
-  # qu'ils servent de monnaie de cotation partout, mais un stablecoin ne
-  # bougera jamais assez pour que la stratégie en escalier x2->x100 ait un
-  # sens. S'applique aussi aux tokens repérés via le wallet tracker.
+  # Stablecoins ET monnaie native de la chaîne à ignorer complètement (jamais
+  # scorés, jamais affichés) : ils dominent les classements "plus gros
+  # volume" parce qu'ils servent de monnaie de cotation partout. Un
+  # stablecoin ne bougera jamais assez pour que l'escalier x2->x100 ait un
+  # sens ; la monnaie native (SOL, ETH) PEUT bouger mais n'est pas non plus
+  # le genre de petit token que cette stratégie vise — acheter SOL lui-même
+  # (repéré le 11/09/2026 via le scan tendances) n'a pas de sens ici.
+  # S'applique aussi aux tokens repérés via le wallet tracker.
   excluded_tokens:
     solana:
       - "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # USDC
       - "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"  # USDT
-    robinhood: []  # à compléter si un stablecoin apparaît dans le bruit du scan
+      - "So11111111111111111111111111111111111111112"  # SOL (wrapped)
+    robinhood: []  # à compléter si un stablecoin/WETH apparaît dans le bruit du scan
 
 fees:
   # Point ouvert (section 8) : à vérifier précisément sur Robinhood Chain
