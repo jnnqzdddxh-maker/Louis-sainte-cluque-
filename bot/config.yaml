@@ -242,7 +242,13 @@ secrets:
   dexpaprika_api_key_env: DEXPAPRIKA_API_KEY
 
 dashboard:
-  host: 127.0.0.1
+  # 0.0.0.0 : écoute sur toutes les interfaces réseau (pas seulement la
+  # machine locale), nécessaire pour y accéder via Tailscale ou le wifi
+  # local. Le dashboard n'a AUCUNE authentification — acceptable sur un
+  # réseau privé (wifi maison, Tailscale), à ne jamais exposer directement
+  # sur l'internet public (pas de redirection de port sur la box) sans
+  # ajouter un mot de passe d'abord.
+  host: 0.0.0.0
   port: 8787
 
 logging:
