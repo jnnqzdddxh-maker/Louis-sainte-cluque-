@@ -86,6 +86,13 @@ scoring:
     volume_spike_multiplier: 2.0      # volume actuel / volume moyen historique pour "momentum"
     breakout_lookback_minutes: 60     # fenêtre pour détecter une cassure de résistance
 
+    # Légitimité (bonus dans le sous-score marché, pas éliminatoire) :
+    # liens sociaux déclarés + appairage avec un actif de référence plutôt
+    # qu'un token obscur. Voir core/scoring.py:_market_subscore.
+    recognized_quote_tokens:
+      solana: ["SOL", "USDC", "USDT"]
+      robinhood: ["ETH", "WETH", "USDC", "USDT"]
+
   twitter:
     poll_interval_minutes: 5          # veille périodique, pas de streaming temps réel
     tracked_accounts: []              # à remplir

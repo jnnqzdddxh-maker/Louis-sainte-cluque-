@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 import requests
 
+from core.config import load_config
 from core.secrets import get_secret
 
 DEXPAPRIKA_BASE_URL = "https://api.dexpaprika.com"
@@ -30,6 +31,10 @@ class RawMarketData:
     volume_avg_baseline_usd: float
     top_holder_concentration_pct: float
     breakout_detected: bool
+    symbol: str = ""                             # utilisé pour la recherche sociale (Reddit/Twitter)
+    has_social_links: bool = False               # toujours False ici : DexPaprika ne fournit pas les
+                                                  # liens sociaux d'un token (contrairement à Birdeye/Solana)
+    paired_with_recognized_quote: bool = False    # pool appairé à ETH/WETH/USDC/USDT plutôt qu'à un token obscur
 
 
 class DexPaprikaClient:
@@ -94,6 +99,19 @@ class DexPaprikaClient:
         baseline = volume_24h / max(1.0 + volume_change_pct / 100, 0.01)
         price_change_pct = float(pool.get("price_change_24h_pct", 0.0) or 0.0)
 
+        pool_tokens = pool.get("tokens", []) or []
+        base_symbol = token_address
+        paired_with_recognized = False
+        if pool_tokens:
+            recognized_quotes = set(
+                load_config()["scoring"]["price_volume_liquidity"]["recognized_quote_tokens"]["robinhood"]
+            )
+            base_token = next((t for t in pool_tokens if t.get("id") == token_address), pool_tokens[0])
+            base_symbol = base_token.get("symbol", token_address) or token_address
+            paired_with_recognized = any(
+                t.get("symbol", "") in recognized_quotes for t in pool_tokens if t is not base_token
+            )
+
         return RawMarketData(
             token_address=token_address,
             price_usd=float(pool.get("price_usd", 0.0) or 0.0),
@@ -102,6 +120,8 @@ class DexPaprikaClient:
             volume_avg_baseline_usd=baseline,
             top_holder_concentration_pct=0.0,  # DexPaprika ne fournit pas la répartition holders
             breakout_detected=price_change_pct > 0 and volume_change_pct > 0,
+            symbol=base_symbol,
+            paired_with_recognized_quote=paired_with_recognized,
         )
 
 

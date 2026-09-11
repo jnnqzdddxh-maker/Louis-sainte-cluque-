@@ -11,9 +11,17 @@ from core.config import load_config
 from core.engine import TradingEngine
 from core.logging_store import DecisionLogger, StateStore
 from core.scoring import Confidence
+from connectors.twitter_watch import TwitterWatcher
 
 CFG = load_config()
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+class _NullSearchBackend:
+    """Aucun appel réseau — les tests ne doivent pas dépendre de Reddit."""
+
+    def search(self, query: str) -> list:
+        return []
 
 
 @dataclass
@@ -24,6 +32,9 @@ class FakeRawMarketData:
     volume_avg_baseline_usd: float
     top_holder_concentration_pct: float
     breakout_detected: bool
+    symbol: str = "FAKE"
+    has_social_links: bool = True
+    paired_with_recognized_quote: bool = True
 
 
 def _engine(tmp_path, fetchers) -> TradingEngine:
@@ -32,6 +43,7 @@ def _engine(tmp_path, fetchers) -> TradingEngine:
         market_data_fetchers=fetchers,
         capital_eur=CFG["risk"]["capital_eur"],
         config=CFG,
+        twitter_watcher=TwitterWatcher(config=CFG, backend=_NullSearchBackend()),
         logger=DecisionLogger(path=tmp_path / "decisions.jsonl", config=CFG),
         state_store=StateStore(path=tmp_path / "state.sqlite3", config=CFG),
     )

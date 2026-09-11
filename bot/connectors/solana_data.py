@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 import requests
 
+from core.config import load_config
 from core.secrets import get_secret
 
 BIRDEYE_BASE_URL = "https://public-api.birdeye.so"
@@ -30,6 +31,9 @@ class RawMarketData:
     volume_avg_baseline_usd: float
     top_holder_concentration_pct: float
     breakout_detected: bool
+    symbol: str = ""                             # utilisé pour la recherche sociale (Reddit/Twitter)
+    has_social_links: bool = False               # site web/twitter/telegram déclarés dans les métadonnées
+    paired_with_recognized_quote: bool = False    # pool principal appairé à SOL/USDC/USDT plutôt qu'à un token obscur
 
 
 class BirdeyeClient:
@@ -100,6 +104,23 @@ class BirdeyeClient:
             raise MarketDataError(f"Birdeye token_trending a échoué: {data}")
         return [t["address"] for t in data["data"]["tokens"]]
 
+    def get_markets(self, token_address: str, limit: int = 10) -> list[dict]:
+        """Pools/marchés où ce token est échangé — sert à vérifier avec quoi
+        il est appairé (SOL/USDC/USDT = infrastructure standard, un token
+        obscur en face = signal de prudence supplémentaire).
+        """
+        resp = requests.get(
+            f"{BIRDEYE_BASE_URL}/defi/v2/markets",
+            params={"address": token_address, "offset": 0, "limit": limit},
+            headers=self._headers(),
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("success"):
+            raise MarketDataError(f"Birdeye markets a échoué pour {token_address}: {data}")
+        return data["data"]["items"]
+
     def fetch_raw_market_data(self, token_address: str) -> RawMarketData:
         overview = self.get_token_overview(token_address)
         try:
@@ -119,6 +140,22 @@ class BirdeyeClient:
 
         price_change_1h = float(overview.get("priceChange1hPercent", 0.0) or 0.0)
 
+        extensions = overview.get("extensions") or {}
+        has_social = any(extensions.get(k) for k in ("website", "twitter", "telegram", "discord"))
+
+        recognized_quotes = set(
+            load_config()["scoring"]["price_volume_liquidity"]["recognized_quote_tokens"]["solana"]
+        )
+        paired_with_recognized = False
+        try:
+            for market in self.get_markets(token_address, limit=10):
+                quote_symbol = (market.get("quote", {}) or {}).get("symbol", "")
+                if quote_symbol in recognized_quotes:
+                    paired_with_recognized = True
+                    break
+        except (MarketDataError, requests.RequestException):
+            paired_with_recognized = False  # signal non bloquant : mieux vaut 0 qu'un crash
+
         return RawMarketData(
             token_address=token_address,
             price_usd=float(overview.get("price", 0.0) or 0.0),
@@ -127,6 +164,9 @@ class BirdeyeClient:
             volume_avg_baseline_usd=baseline,
             top_holder_concentration_pct=top_pct,
             breakout_detected=price_change_1h > 0 and vol_change_pct > 0,
+            symbol=overview.get("symbol", "") or token_address,
+            has_social_links=has_social,
+            paired_with_recognized_quote=paired_with_recognized,
         )
 
 

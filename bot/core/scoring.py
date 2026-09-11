@@ -33,6 +33,8 @@ class MarketSignal:
     volume_current: float
     volume_avg_baseline: float
     breakout_detected: bool
+    has_social_links: bool = False              # site/twitter/telegram déclarés (bonus légitimité)
+    paired_with_recognized_quote: bool = False   # appairé à SOL/ETH/USDC/USDT plutôt qu'à un token obscur
 
 
 @dataclass(frozen=True)
@@ -82,15 +84,22 @@ def _anti_rug_filter(signal: MarketSignal, cfg: dict) -> tuple[bool, str | None]
 
 
 def _market_subscore(signal: MarketSignal, cfg: dict) -> float:
+    """Momentum (jusqu'à 80 pts) + légitimité (jusqu'à 20 pts). La
+    légitimité n'est PAS éliminatoire (contrairement au filtre anti-rug) :
+    un token peut ne pas avoir renseigné ses réseaux sociaux sans être une
+    arnaque pour autant — ça reste un bonus, pas une porte."""
     mc = cfg["scoring"]["price_volume_liquidity"]
     baseline = signal.volume_avg_baseline or 0.0
     if baseline <= 0:
         volume_ratio_score = 0.0
     else:
         ratio = signal.volume_current / baseline
-        volume_ratio_score = min(60.0, (ratio / mc["volume_spike_multiplier"]) * 60.0)
-    breakout_score = 40.0 if signal.breakout_detected else 0.0
-    return min(100.0, volume_ratio_score + breakout_score)
+        volume_ratio_score = min(50.0, (ratio / mc["volume_spike_multiplier"]) * 50.0)
+    breakout_score = 30.0 if signal.breakout_detected else 0.0
+    legitimacy_score = (10.0 if signal.has_social_links else 0.0) + (
+        10.0 if signal.paired_with_recognized_quote else 0.0
+    )
+    return min(100.0, volume_ratio_score + breakout_score + legitimacy_score)
 
 
 def _twitter_subscore(signal: TwitterSignal, cfg: dict) -> float:

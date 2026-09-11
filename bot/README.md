@@ -141,6 +141,24 @@ sans corroboration d'un wallet réputé, le palier x100 (réservé à la
 confiance "très haute") ne peut jamais se déclencher sur un token découvert
 par le scan seul.
 
+## Vérification de légitimité (bonus, pas un filtre éliminatoire)
+
+En plus du filtre anti-rug (liquidité min / concentration max, lui
+éliminatoire), le sous-score marché inclut un bonus de légitimité jusqu'à
+20 points (`core/scoring.py:_market_subscore`) :
+
+- **Liens sociaux déclarés** (site web/Twitter/Telegram/Discord dans les
+  métadonnées on-chain, via `BirdeyeClient.get_token_overview`) — Solana
+  uniquement, DexPaprika ne fournit pas cette info pour Robinhood Chain.
+- **Appairé à un actif de référence** (SOL/USDC/USDT sur Solana,
+  ETH/WETH/USDC/USDT sur Robinhood Chain — `config.yaml:
+  scoring.price_volume_liquidity.recognized_quote_tokens`) plutôt qu'à un
+  token obscur, via `BirdeyeClient.get_markets` / les pools DexPaprika.
+
+C'est un bonus, pas une porte : l'absence de liens sociaux ou un appairage
+inhabituel ne rejette pas le token (beaucoup de projets légitimes ne
+remplissent pas ces métadonnées), ça baisse juste un peu son score.
+
 ## Garde-fous (section 4 du cahier des charges)
 
 - Taille max par position : 20-50€ (`sizing`), forcée à 20€ tant que
@@ -175,10 +193,15 @@ par le scan seul.
   `NotImplementedError` en live) — nécessite un lookup de solde réel
   (quantité de tokens détenus, decimals) avant de construire la quote de
   vente Jupiter.
-- **Veille Twitter/X sans backend de recherche branché par défaut**
-  (`connectors/twitter_watch.py:NoSearchBackendConfigured`) — pas d'accès
-  API X payant (cahier des charges, section 3) ; brancher un backend de
-  recherche (service tiers, miroir Nitter, etc.) avant usage réel.
+- **Veille sociale sur Reddit par défaut, pas Twitter/X** — pas d'accès API
+  X payant (cahier des charges, section 3), donc `TwitterWatcher` utilise
+  `connectors/twitter_watch.py:RedditSearchBackend` (recherche publique,
+  gratuite, sans clé) sur une poignée de subreddits crypto. Moins réactif
+  qu'un vrai flux Twitter, et beaucoup de micro-tokens n'auront tout
+  simplement aucun post Reddit — le signal "twitter_news" (15% du poids)
+  restera donc souvent à 0, ce qui est normal, pas un bug. Un vrai backend
+  Twitter/X ou un agrégateur de news (ex: CryptoPanic) peut remplacer/
+  s'ajouter via `SearchBackend` sans toucher au reste du module.
 - **Interprétation de deux points non-explicites du tableau de la section 5**
   du cahier des charges (trailing "normal" entre x5→x10 par cohérence avec
   x2→x5 et x10→x20 ; exécution automatique — et non purement manuelle — du

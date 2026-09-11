@@ -34,6 +34,12 @@ class RawMarketDataLike(Protocol):
     volume_avg_baseline_usd: float
     top_holder_concentration_pct: float
     breakout_detected: bool
+    # Optionnels (lus via getattr avec repli) : un fetcher qui ne les fournit
+    # pas dégrade juste gracieusement le bonus légitimité et la recherche
+    # sociale, sans planter.
+    symbol: str
+    has_social_links: bool
+    paired_with_recognized_quote: bool
 
 
 MarketDataFetcher = Callable[[str], RawMarketDataLike]
@@ -165,10 +171,15 @@ class TradingEngine:
             volume_current=raw.volume_24h_usd,
             volume_avg_baseline=raw.volume_avg_baseline_usd,
             breakout_detected=raw.breakout_detected,
+            has_social_links=getattr(raw, "has_social_links", False),
+            paired_with_recognized_quote=getattr(raw, "paired_with_recognized_quote", False),
         )
 
-        self.twitter_watcher.poll(token_address)
-        twitter_signal = self.twitter_watcher.signal_for_token(token_address, now)
+        # Le symbole (ex: "BONK") donne une recherche sociale bien plus
+        # pertinente que l'adresse brute — repli sur l'adresse si absent.
+        search_term = getattr(raw, "symbol", "") or token_address
+        self.twitter_watcher.poll(search_term)
+        twitter_signal = self.twitter_watcher.signal_for_token(search_term, now)
 
         score = compute_score(wallet_signal, market_signal, twitter_signal, self.cfg)
         self.candidates[token_address] = Candidate(token_address, chain, score, now, source=source)
