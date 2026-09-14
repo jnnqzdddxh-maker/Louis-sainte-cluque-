@@ -85,7 +85,11 @@ scoring:
         - "0x743be0db30148336A3DB479f19d4e1828b293869"
 
   price_volume_liquidity:
-    min_liquidity_usd: 5000           # filtre anti-rug : liquidité minimale
+    # Baissé de 5000$ à 1500$ le 14/09/2026 : à 5000$, le filtre rejetait
+    # presque tous les tokens tout juste créés (trop jeunes pour avoir déjà
+    # accumulé cette liquidité), donc quasi aucun candidat ne passait.
+    # Compromis assumé : moins de protection contre un rug direct.
+    min_liquidity_usd: 1500           # filtre anti-rug : liquidité minimale
     max_top_holder_concentration_pct: 30   # filtre anti-rug : concentration max du top holder (hors LP/burn)
     volume_spike_window_minutes: 15
     volume_spike_multiplier: 2.0      # volume actuel / volume moyen historique pour "momentum"
