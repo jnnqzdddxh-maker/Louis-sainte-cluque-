@@ -44,3 +44,33 @@ def test_resolve_addresses_without_resolve_base_token_keeps_pool_id():
     client = DexPaprikaClient(network_id="robinhood")
     resolved = client._resolve_addresses([REAL_SOLANA_POOL], resolve_base_token=False)
     assert resolved == ["AuBT1VYtajjSk83d8J78qFUdjGt2BAazpRtvErYUcM8v"]
+
+
+# Pool complet, forme réelle observée le 14/09/2026 (via Invoke-RestMethod) :
+# pas de "volume_usd_change_24h_pct" ni "price_change_24h_pct" comme
+# précédemment supposé.
+REAL_POOL_WITH_MARKET_DATA = {
+    "id": "3vaJU4tQYUhADSCJCq2eFUDYTk5MF4id6xQT5J7z3kwT",
+    "price_usd": 0.0001,
+    "liquidity_usd": 4.44,
+    "volume_usd_24h": 20.0,   # au-dessus de la moyenne 7j -> pic de volume
+    "volume_usd_7d": 70.0,    # moyenne quotidienne proxy = 70/7 = 10
+    "price_change_percentage_1h": 5.0,
+    "tokens": [
+        {"id": "So11111111111111111111111111111111111111112", "chain": "solana"},
+        {"id": "Hcd8d5DANpxgnXvwYPs37iNY5THJkF51qarFEUdJpump", "chain": "solana"},
+    ],
+}
+
+
+def test_pool_to_raw_market_data_uses_real_field_names():
+    client = DexPaprikaClient(network_id="solana")
+    raw = client._pool_to_raw_market_data(
+        REAL_POOL_WITH_MARKET_DATA, "Hcd8d5DANpxgnXvwYPs37iNY5THJkF51qarFEUdJpump"
+    )
+    assert raw.price_usd == 0.0001
+    assert raw.liquidity_usd == 4.44
+    assert raw.volume_24h_usd == 20.0
+    assert raw.volume_avg_baseline_usd == 10.0  # 70/7
+    assert raw.breakout_detected is True  # price_change_1h > 0 ET volume_24h(20) > baseline(10)
+    assert raw.token_address == "Hcd8d5DANpxgnXvwYPs37iNY5THJkF51qarFEUdJpump"

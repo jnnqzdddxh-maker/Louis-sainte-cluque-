@@ -68,6 +68,8 @@ class RawMarketData:
     has_social_links: bool = False               # toujours False ici : DexPaprika ne fournit pas les
                                                   # liens sociaux d'un token (contrairement à Birdeye/Solana)
     paired_with_recognized_quote: bool = False    # pool appairé à ETH/WETH/USDC/USDT plutôt qu'à un token obscur
+    mint_authority_renounced: bool = True         # non applicable ici (ERC20) sauf réseau "solana" — voir fetch_raw_market_data_by_token
+    freeze_authority_renounced: bool = True
 
 
 class DexPaprikaClient:
@@ -144,24 +146,61 @@ class DexPaprikaClient:
         data = resp.json()
         return self._resolve_addresses(data.get("results", []), resolve_base_token)
 
-    def fetch_raw_market_data(self, pool_address: str, token_address: str) -> RawMarketData:
-        pool = self.get_pool(pool_address)
+    def get_pools_for_token(self, token_address: str, limit: int = 5) -> list[dict]:
+        """Pools où ce token précis est échangé, triés par liquidité
+        décroissante (le premier résultat est le pool "principal"). Sert au
+        scoring d'un candidat dont on n'a qu'une adresse de token, pas de
+        pool précis (ex: wallet tracker Solana). Endpoint confirmé le
+        14/09/2026 : /pools/search accepte un paramètre token_address
+        (l'ancien /tokens/{address}/pools a été retiré, 410 Gone).
+        """
+        resp = requests.get(
+            f"{DEXPAPRIKA_BASE_URL}/networks/{self.network_id}/pools/search",
+            params={
+                "token_address": token_address,
+                "order_by": "liquidity_usd",
+                "sort": "desc",
+                "limit": limit,
+            },
+            headers=self._headers(),
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        _raise_for_status_with_body(resp)
+        return resp.json().get("results", [])
+
+    def _pool_to_raw_market_data(self, pool: dict, token_address: str) -> RawMarketData:
+        """Champs confirmés en dry-run réel le 14/09/2026 (voir
+        get_trending_pools) : pas de "volume_usd_change_24h_pct" ni de
+        "price_change_24h_pct" comme précédemment supposé — les vrais noms
+        sont volume_usd_7d/30d et price_change_percentage_{5m,1h,6h,24h}.
+        Pas de moyenne de volume directe : volume_usd_7d/7 sert de proxy
+        pour la moyenne quotidienne "normale", comparée à volume_usd_24h
+        pour détecter un pic.
+        """
         volume_24h = float(pool.get("volume_usd_24h", 0.0) or 0.0)
-        volume_change_pct = float(pool.get("volume_usd_change_24h_pct", 0.0) or 0.0)
-        baseline = volume_24h / max(1.0 + volume_change_pct / 100, 0.01)
-        price_change_pct = float(pool.get("price_change_24h_pct", 0.0) or 0.0)
+        volume_7d = float(pool.get("volume_usd_7d", 0.0) or 0.0)
+        baseline = volume_7d / 7 if volume_7d > 0 else volume_24h
+        price_change_1h = float(pool.get("price_change_percentage_1h", 0.0) or 0.0)
 
         pool_tokens = pool.get("tokens", []) or []
         base_symbol = token_address
         paired_with_recognized = False
         if pool_tokens:
+            cfg = load_config()
             recognized_quotes = set(
-                load_config()["scoring"]["price_volume_liquidity"]["recognized_quote_tokens"]["robinhood"]
+                cfg["scoring"]["price_volume_liquidity"]["recognized_quote_tokens"].get(self.network_id, [])
             )
-            base_token = next((t for t in pool_tokens if t.get("id") == token_address), pool_tokens[0])
-            base_symbol = base_token.get("symbol", token_address) or token_address
+            recognized_quotes |= set(
+                cfg.get("market_scan", {}).get("excluded_tokens", {}).get(self.network_id, [])
+            )
+            base_token = next(
+                (t for t in pool_tokens if t.get("id") == token_address), pool_tokens[0]
+            )
+            base_symbol = base_token.get("symbol") or token_address
             paired_with_recognized = any(
-                t.get("symbol", "") in recognized_quotes for t in pool_tokens if t is not base_token
+                (t.get("symbol", "") in recognized_quotes or t.get("id", "") in recognized_quotes)
+                for t in pool_tokens
+                if t is not base_token
             )
 
         return RawMarketData(
@@ -171,10 +210,40 @@ class DexPaprikaClient:
             volume_24h_usd=volume_24h,
             volume_avg_baseline_usd=baseline,
             top_holder_concentration_pct=0.0,  # DexPaprika ne fournit pas la répartition holders
-            breakout_detected=price_change_pct > 0 and volume_change_pct > 0,
+            breakout_detected=price_change_1h > 0 and volume_24h > baseline,
             symbol=base_symbol,
             paired_with_recognized_quote=paired_with_recognized,
         )
+
+    def fetch_raw_market_data(self, pool_address: str, token_address: str) -> RawMarketData:
+        """Utilisé quand on connaît déjà le pool (Robinhood Chain, où le
+        "candidat" découvert par le scan EST directement un id de pool)."""
+        pool = self.get_pool(pool_address)
+        return self._pool_to_raw_market_data(pool, token_address)
+
+    def fetch_raw_market_data_by_token(self, token_address: str) -> RawMarketData:
+        """Utilisé quand on a une adresse de TOKEN, pas de pool (Solana :
+        wallet tracker et scan de marché résolvent tous les deux une vraie
+        adresse de token — voir dry_run.py). Remplace Birdeye pour le
+        scoring Solana (quota gratuit épuisé le 14/09/2026)."""
+        pools = self.get_pools_for_token(token_address, limit=5)
+        if not pools:
+            raise MarketDataError(f"Aucun pool DexPaprika trouvé pour le token {token_address}")
+        raw = self._pool_to_raw_market_data(pools[0], token_address)
+
+        if self.network_id == "solana":
+            # Filtre anti-rug éliminatoire indépendant de Birdeye — RPC
+            # Helius, pas concerné par le quota Birdeye.
+            from connectors.solana_data import HeliusClient, MarketDataError as SolanaMarketDataError
+
+            try:
+                mint_renounced, freeze_renounced = HeliusClient().get_mint_authorities(token_address)
+            except (SolanaMarketDataError, requests.RequestException):
+                mint_renounced, freeze_renounced = False, False  # fail-closed, voir core/scoring.py
+            raw.mint_authority_renounced = mint_renounced
+            raw.freeze_authority_renounced = freeze_renounced
+
+        return raw
 
 
 class BitqueryClient:

@@ -27,7 +27,6 @@ from core.config import load_config
 from core.engine import TradingEngine
 from core.secrets import get_secret
 from connectors.robinhood_data import BitqueryClient, DexPaprikaClient
-from connectors.solana_data import BirdeyeClient
 from connectors.wallet_tracker import poll_robinhood_wallet_buys, poll_solana_wallet_buys
 from dashboard.app import create_app
 
@@ -38,8 +37,12 @@ log = logging.getLogger("dry_run")
 def build_market_data_fetchers(cfg: dict) -> dict:
     fetchers = {}
     if cfg["chains"]["solana"]["enabled"]:
-        birdeye = BirdeyeClient()
-        fetchers["solana"] = birdeye.fetch_raw_market_data
+        # DexPaprika plutôt que Birdeye (quota gratuit Birdeye épuisé, y
+        # compris pour token_overview — pas seulement les scans — le
+        # 14/09/2026). Le check mint/freeze authority (RPC Helius) reste
+        # actif, indépendant de Birdeye — voir fetch_raw_market_data_by_token.
+        dexpaprika_solana = DexPaprikaClient(network_id="solana")
+        fetchers["solana"] = dexpaprika_solana.fetch_raw_market_data_by_token
     if cfg["chains"]["robinhood"]["enabled"]:
         dexpaprika = DexPaprikaClient()
         # Simplification de ce scaffold : suppose token_address == pool_address

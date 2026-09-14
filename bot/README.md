@@ -195,16 +195,22 @@ passer sans certitude. Pas d'équivalent standardisé sur Robinhood Chain
   wallet_tracking_enabled: false`) — Bitquery a répondu "usage quota
   reached" (14/09/2026), quota gratuit épuisé, pas de plan payant prévu.
   Le scan de marché DexPaprika (gratuit) reste actif sur cette chaîne.
-- **Scans "nouveaux tokens"/"tendances" Solana rebasculés sur DexPaprika**
-  (14/09/2026) — Birdeye ("Compute units usage limit exceeded") coûtait un
-  quota payant pour ces deux scans ; DexPaprika supporte aussi Solana
-  nativement, gratuitement, sans clé. Le scoring d'un candidat détecté
-  continue d'utiliser Birdeye ensuite (`get_token_overview`, usage bien
-  plus léger, non affecté). Simplification à noter :
-  `DexPaprikaClient._pick_base_token_address` choisit le token qui n'est
-  pas la monnaie de cotation reconnue (SOL/USDC/USDT) dans chaque pool
-  remonté — si aucun des deux ne matche (pool exotique), repli sur le
-  premier token du pool, pas garanti d'être le bon.
+- **Birdeye entièrement retiré du chemin critique Solana, remplacé par
+  DexPaprika** (14/09/2026) — le quota gratuit épuisé bloquait en fait
+  TOUTES les routes Birdeye, y compris `token_overview` utilisé pour
+  scorer chaque candidat (pas seulement les 2 scans, comme cru dans un
+  premier temps). `market_data_fetchers["solana"]` pointe maintenant vers
+  `DexPaprikaClient.fetch_raw_market_data_by_token`
+  (`/networks/solana/pools/search?token_address=...`, endpoint confirmé
+  via test réel). Le check mint/freeze authority (RPC Helius) reste actif,
+  indépendant de Birdeye. `BirdeyeClient` reste dans le code
+  (`connectors/solana_data.py`) mais n'est plus appelé nulle part par
+  défaut — à réactiver seulement avec un plan payant.
+  Simplification à noter : `DexPaprikaClient._pick_base_token_address`
+  choisit le token qui n'est pas la monnaie de cotation reconnue
+  (SOL/USDC/USDT, par symbole ET par adresse) dans chaque pool remonté —
+  si aucun des deux ne matche (pool exotique), repli sur le premier token
+  du pool, pas garanti d'être le bon.
 - **Encodage du swap Uniswap v4 sur Robinhood Chain non implémenté**
   (`connectors/robinhood_rpc.py:build_v4_swap_calldata` lève
   volontairement `NotImplementedError`). La chaîne a quelques semaines de
