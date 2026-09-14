@@ -9,11 +9,21 @@ ne signera ni n'enverra JAMAIS de transaction, quoi qu'il arrive. Lance le
 dashboard de surveillance (positions, scores en direct, log des décisions)
 et tourne indéfiniment (Ctrl+C pour arrêter proprement).
 
-IMPORTANT : il appelle les vraies APIs de marché (Birdeye / DexPaprika /
-Bitquery) en LECTURE SEULE, pour que le scoring et les paliers de sortie
-soient validés sur des conditions de marché réelles. Il faut donc les clés
-API de marché (voir .env.example) même en dry-run — seules les clés privées
-des wallets d'exécution ne sont pas nécessaires ici.
+IMPORTANT (architecture) : tous les appels réseau (DexPaprika/Helius/
+Bitquery) passent par la librairie `requests`, qui est BLOQUANTE. Exécutés
+tels quels dans une coroutine asyncio, ils gèleraient tout le programme
+(dashboard inclus) pendant leur durée — observé en dry-run réel le
+14/09/2026 (plus aucune ligne de log, dashboard qui ne répond plus, alors
+qu'un cycle de scan peut déclencher des dizaines d'appels séquentiels).
+Chaque boucle ci-dessous encapsule donc son travail réseau dans une
+fonction synchrone `_..._once`, appelée via `asyncio.to_thread(...)` — ça
+tourne dans un thread séparé, le serveur web reste réactif pendant ce temps.
+
+IMPORTANT (données) : il appelle les vraies APIs de marché (DexPaprika /
+Helius / Bitquery) en LECTURE SEULE, pour que le scoring et les paliers de
+sortie soient validés sur des conditions de marché réelles. Il faut donc
+les clés API de marché (voir .env.example) même en dry-run — seules les
+clés privées des wallets d'exécution ne sont pas nécessaires ici.
 """
 from __future__ import annotations
 
@@ -54,6 +64,18 @@ def build_market_data_fetchers(cfg: dict) -> dict:
     return fetchers
 
 
+# -- Robinhood Chain : suivi des wallets (Bitquery) --------------------------
+
+def _poll_robinhood_wallets_once(
+    engine: TradingEngine, bitquery: BitqueryClient, tracked: list[str], since: datetime
+) -> datetime:
+    events = poll_robinhood_wallet_buys(bitquery, tracked, since)
+    now = datetime.now(timezone.utc)
+    for event in events:
+        engine.on_wallet_buy_event(event)
+    return now
+
+
 async def poll_robinhood_wallets_loop(engine: TradingEngine, cfg: dict) -> None:
     if not cfg["chains"]["robinhood"]["enabled"]:
         return
@@ -69,13 +91,22 @@ async def poll_robinhood_wallets_loop(engine: TradingEngine, cfg: dict) -> None:
     since = datetime.now(timezone.utc)
     while True:
         try:
-            events = poll_robinhood_wallet_buys(bitquery, tracked, since)
-            since = datetime.now(timezone.utc)
-            for event in events:
-                engine.on_wallet_buy_event(event)
+            since = await asyncio.to_thread(_poll_robinhood_wallets_once, engine, bitquery, tracked, since)
         except Exception:
             log.exception("échec du poll wallets Robinhood Chain")
         await asyncio.sleep(interval)
+
+
+# -- Solana : suivi des wallets (Helius) --------------------------------------
+
+def _poll_solana_wallets_once(
+    engine: TradingEngine, helius_api_key: str, tracked: list[str], since: datetime
+) -> datetime:
+    events = poll_solana_wallet_buys(helius_api_key, tracked, since)
+    now = datetime.now(timezone.utc)
+    for event in events:
+        engine.on_wallet_buy_event(event)
+    return now
 
 
 async def poll_solana_wallets_loop(engine: TradingEngine, cfg: dict) -> None:
@@ -90,13 +121,33 @@ async def poll_solana_wallets_loop(engine: TradingEngine, cfg: dict) -> None:
     since = datetime.now(timezone.utc)
     while True:
         try:
-            events = poll_solana_wallet_buys(helius_api_key, tracked, since)
-            since = datetime.now(timezone.utc)
-            for event in events:
-                engine.on_wallet_buy_event(event)
+            since = await asyncio.to_thread(_poll_solana_wallets_once, engine, helius_api_key, tracked, since)
         except Exception:
             log.exception("échec du poll wallets Solana")
         await asyncio.sleep(interval)
+
+
+# -- Scan de marché : nouveaux tokens/pools -----------------------------------
+
+def _market_scan_new_listings_once(
+    engine: TradingEngine,
+    now: datetime,
+    dexpaprika_solana: DexPaprikaClient | None,
+    dexpaprika_robinhood: DexPaprikaClient | None,
+    limit: int,
+) -> None:
+    if dexpaprika_solana is not None:
+        try:
+            for token_address in dexpaprika_solana.get_new_pools(limit=limit, resolve_base_token=True):
+                engine.on_market_scan_hit(token_address, "solana", now, source="market_scan_new_listing")
+        except Exception:
+            log.exception("échec du scan nouveaux tokens Solana")
+    if dexpaprika_robinhood is not None:
+        try:
+            for pool_address in dexpaprika_robinhood.get_new_pools(limit=limit):
+                engine.on_market_scan_hit(pool_address, "robinhood", now, source="market_scan_new_listing")
+        except Exception:
+            log.exception("échec du scan nouveaux pools Robinhood Chain")
 
 
 async def market_scan_new_listings_loop(engine: TradingEngine, cfg: dict) -> None:
@@ -111,9 +162,6 @@ async def market_scan_new_listings_loop(engine: TradingEngine, cfg: dict) -> Non
     limit = scan_cfg["tokens_per_scan"]
 
     solana_on = cfg["chains"]["solana"]["enabled"] and scan_cfg.get("solana_enabled", True)
-    # DexPaprika (gratuit, sans clé) plutôt que Birdeye (quota payant épuisé
-    # le 14/09/2026) pour la découverte Solana — le scoring/fetch continue
-    # d'utiliser Birdeye ensuite (get_token_overview, usage léger).
     dexpaprika_solana = DexPaprikaClient(network_id="solana") if solana_on else None
     dexpaprika_robinhood = DexPaprikaClient() if cfg["chains"]["robinhood"]["enabled"] else None
     if not solana_on:
@@ -121,21 +169,33 @@ async def market_scan_new_listings_loop(engine: TradingEngine, cfg: dict) -> Non
 
     while True:
         now = datetime.now(timezone.utc)
-        if dexpaprika_solana is not None:
-            try:
-                for token_address in dexpaprika_solana.get_new_pools(limit=limit, resolve_base_token=True):
-                    engine.on_market_scan_hit(token_address, "solana", now, source="market_scan_new_listing")
-            except Exception:
-                log.exception("échec du scan nouveaux tokens Solana")
-        if dexpaprika_robinhood is not None:
-            try:
-                for pool_address in dexpaprika_robinhood.get_new_pools(limit=limit):
-                    engine.on_market_scan_hit(
-                        pool_address, "robinhood", now, source="market_scan_new_listing"
-                    )
-            except Exception:
-                log.exception("échec du scan nouveaux pools Robinhood Chain")
+        await asyncio.to_thread(
+            _market_scan_new_listings_once, engine, now, dexpaprika_solana, dexpaprika_robinhood, limit
+        )
         await asyncio.sleep(interval)
+
+
+# -- Scan de marché : tendances (volume actuel) -------------------------------
+
+def _market_scan_trending_once(
+    engine: TradingEngine,
+    now: datetime,
+    dexpaprika_solana: DexPaprikaClient | None,
+    dexpaprika_robinhood: DexPaprikaClient | None,
+    limit: int,
+) -> None:
+    if dexpaprika_solana is not None:
+        try:
+            for token_address in dexpaprika_solana.get_trending_pools(limit=limit, resolve_base_token=True):
+                engine.on_market_scan_hit(token_address, "solana", now, source="market_scan_trending")
+        except Exception:
+            log.exception("échec du scan tendances Solana")
+    if dexpaprika_robinhood is not None:
+        try:
+            for pool_address in dexpaprika_robinhood.get_trending_pools(limit=limit):
+                engine.on_market_scan_hit(pool_address, "robinhood", now, source="market_scan_trending")
+        except Exception:
+            log.exception("échec du scan tendances Robinhood Chain")
 
 
 async def market_scan_trending_loop(engine: TradingEngine, cfg: dict) -> None:
@@ -156,28 +216,19 @@ async def market_scan_trending_loop(engine: TradingEngine, cfg: dict) -> None:
 
     while True:
         now = datetime.now(timezone.utc)
-        if dexpaprika_solana is not None:
-            try:
-                for token_address in dexpaprika_solana.get_trending_pools(limit=limit, resolve_base_token=True):
-                    engine.on_market_scan_hit(token_address, "solana", now, source="market_scan_trending")
-            except Exception:
-                log.exception("échec du scan tendances Solana")
-        if dexpaprika_robinhood is not None:
-            try:
-                for pool_address in dexpaprika_robinhood.get_trending_pools(limit=limit):
-                    engine.on_market_scan_hit(
-                        pool_address, "robinhood", now, source="market_scan_trending"
-                    )
-            except Exception:
-                log.exception("échec du scan tendances Robinhood Chain")
+        await asyncio.to_thread(
+            _market_scan_trending_once, engine, now, dexpaprika_solana, dexpaprika_robinhood, limit
+        )
         await asyncio.sleep(interval)
 
+
+# -- Tick de prix sur les positions ouvertes ----------------------------------
 
 async def price_tick_loop(engine: TradingEngine, cfg: dict) -> None:
     interval = cfg["execution"]["price_poll_interval_seconds"]
     while True:
         try:
-            engine.tick_prices()
+            await asyncio.to_thread(engine.tick_prices)
         except Exception:
             log.exception("échec du tick de prix")
         await asyncio.sleep(interval)
