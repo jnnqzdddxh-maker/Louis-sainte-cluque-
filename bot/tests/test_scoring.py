@@ -50,6 +50,34 @@ def test_anti_rug_filter_rejects_high_concentration():
     assert result.rejected_anti_rug is True
 
 
+def test_anti_rug_filter_rejects_unrenounced_mint_authority():
+    bad_market = MarketSignal(
+        liquidity_usd=50_000,
+        top_holder_concentration_pct=10,
+        volume_current=100_000,
+        volume_avg_baseline=50_000,
+        breakout_detected=True,
+        mint_authority_renounced=False,
+    )
+    result = compute_score(WalletTrackerSignal(5), bad_market, NO_TWITTER, CFG)
+    assert result.rejected_anti_rug is True
+    assert "mint authority" in result.rejection_reason
+
+
+def test_anti_rug_filter_rejects_unrenounced_freeze_authority():
+    bad_market = MarketSignal(
+        liquidity_usd=50_000,
+        top_holder_concentration_pct=10,
+        volume_current=100_000,
+        volume_avg_baseline=50_000,
+        breakout_detected=True,
+        freeze_authority_renounced=False,
+    )
+    result = compute_score(WalletTrackerSignal(5), bad_market, NO_TWITTER, CFG)
+    assert result.rejected_anti_rug is True
+    assert "freeze authority" in result.rejection_reason
+
+
 def test_wallet_signal_below_trigger_scores_zero_on_wallet_subscore():
     result = compute_score(WalletTrackerSignal(0), GOOD_MARKET, NO_TWITTER, CFG)
     assert result.wallet_subscore == 0.0

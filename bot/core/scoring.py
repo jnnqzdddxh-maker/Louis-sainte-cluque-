@@ -35,6 +35,8 @@ class MarketSignal:
     breakout_detected: bool
     has_social_links: bool = False              # site/twitter/telegram déclarés (bonus légitimité)
     paired_with_recognized_quote: bool = False   # appairé à SOL/ETH/USDC/USDT plutôt qu'à un token obscur
+    mint_authority_renounced: bool = True        # True par défaut = "non vérifiable/non applicable"
+    freeze_authority_renounced: bool = True      # (ex: Robinhood Chain) — ne bloque rien dans ce cas
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,11 @@ def _anti_rug_filter(signal: MarketSignal, cfg: dict) -> tuple[bool, str | None]
             f"concentration top holder {signal.top_holder_concentration_pct:.1f}% > "
             f"maximum {mc['max_top_holder_concentration_pct']}%"
         )
+    if mc.get("require_renounced_authorities", True):
+        if not signal.mint_authority_renounced:
+            return False, "mint authority non révoquée (le créateur peut créer des tokens à l'infini)"
+        if not signal.freeze_authority_renounced:
+            return False, "freeze authority non révoquée (le créateur peut geler vos tokens)"
     return True, None
 
 

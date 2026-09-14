@@ -15,6 +15,7 @@ from core.secrets import get_secret
 
 BIRDEYE_BASE_URL = "https://public-api.birdeye.so"
 HELIUS_BASE_URL = "https://api.helius.xyz"
+HELIUS_RPC_URL = "https://mainnet.helius-rpc.com"
 REQUEST_TIMEOUT_S = 10
 
 
@@ -34,6 +35,8 @@ class RawMarketData:
     symbol: str = ""                             # utilisé pour la recherche sociale (Reddit/Twitter)
     has_social_links: bool = False               # site web/twitter/telegram déclarés dans les métadonnées
     paired_with_recognized_quote: bool = False    # pool principal appairé à SOL/USDC/USDT plutôt qu'à un token obscur
+    mint_authority_renounced: bool = True         # False = le créateur peut encore créer des tokens à l'infini
+    freeze_authority_renounced: bool = True       # False = le créateur peut encore geler les tokens des détenteurs
 
 
 def _raise_for_status_with_body(resp: requests.Response) -> None:
@@ -46,8 +49,18 @@ def _raise_for_status_with_body(resp: requests.Response) -> None:
 
 
 class BirdeyeClient:
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None, helius_client: "HeliusClient | None" = None):
         self.api_key = api_key or get_secret("birdeye_api_key_env")
+        # Lazy : HeliusClient est défini plus bas dans ce même fichier, mais
+        # n'est instancié qu'au premier appel réel (pas ici) pour ne
+        # jamais exiger HELIUS_API_KEY tant que fetch_raw_market_data
+        # n'est pas effectivement utilisé.
+        self._helius_client = helius_client
+
+    def _helius(self) -> "HeliusClient":
+        if self._helius_client is None:
+            self._helius_client = HeliusClient()
+        return self._helius_client
 
     def _headers(self) -> dict:
         return {"X-API-KEY": self.api_key, "x-chain": "solana"}
@@ -165,6 +178,15 @@ class BirdeyeClient:
         except (MarketDataError, requests.RequestException):
             paired_with_recognized = False  # signal non bloquant : mieux vaut 0 qu'un crash
 
+        try:
+            mint_renounced, freeze_renounced = self._helius().get_mint_authorities(token_address)
+        except (MarketDataError, requests.RequestException):
+            # Contrairement aux signaux ci-dessus : ceci est un filtre anti-rug
+            # ÉLIMINATOIRE. En cas d'échec de la vérification, on rejette par
+            # prudence (fail-closed) plutôt que de laisser passer un token
+            # dont on n'a pas pu confirmer que les autorités sont révoquées.
+            mint_renounced, freeze_renounced = False, False
+
         return RawMarketData(
             token_address=token_address,
             price_usd=float(overview.get("price", 0.0) or 0.0),
@@ -176,6 +198,8 @@ class BirdeyeClient:
             symbol=overview.get("symbol", "") or token_address,
             has_social_links=has_social,
             paired_with_recognized_quote=paired_with_recognized,
+            mint_authority_renounced=mint_renounced,
+            freeze_authority_renounced=freeze_renounced,
         )
 
 
@@ -196,3 +220,30 @@ class HeliusClient:
         if not results:
             raise MarketDataError(f"Helius token-metadata vide pour {token_address}")
         return results[0]
+
+    def get_mint_authorities(self, token_address: str) -> tuple[bool, bool]:
+        """Lit directement le compte de mint SPL Token via RPC (getAccountInfo,
+        encoding jsonParsed) et retourne (mint_authority_renounced,
+        freeze_authority_renounced) — True si le champ correspondant est null
+        on-chain. Spec SPL Token standard, stable (contrairement aux
+        endpoints REST tiers) : voir https://spl.solana.com/token.
+        """
+        resp = requests.post(
+            f"{HELIUS_RPC_URL}/?api-key={self.api_key}",
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getAccountInfo",
+                "params": [token_address, {"encoding": "jsonParsed"}],
+            },
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        _raise_for_status_with_body(resp)
+        data = resp.json()
+        if "error" in data:
+            raise MarketDataError(f"Helius RPC getAccountInfo a échoué pour {token_address}: {data['error']}")
+        value = (data.get("result") or {}).get("value")
+        if not value:
+            raise MarketDataError(f"Compte introuvable on-chain pour {token_address}")
+        info = value["data"]["parsed"]["info"]
+        return info.get("mintAuthority") is None, info.get("freezeAuthority") is None

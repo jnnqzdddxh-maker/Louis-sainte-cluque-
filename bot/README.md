@@ -159,6 +159,19 @@ C'est un bonus, pas une porte : l'absence de liens sociaux ou un appairage
 inhabituel ne rejette pas le token (beaucoup de projets légitimes ne
 remplissent pas ces métadonnées), ça baisse juste un peu son score.
 
+## Autorités mint/freeze (Solana) — celui-là, éliminatoire
+
+Ajouté le 14/09/2026, sur demande explicite : un token Solana est rejeté si
+son **autorité de mint** (le créateur peut créer des tokens à l'infini,
+diluer/arnaquer) ou son **autorité de freeze** (le créateur peut geler les
+tokens de n'importe quel détenteur) n'est pas révoquée on-chain —
+`config.yaml: scoring.price_volume_liquidity.require_renounced_authorities`.
+Vérifié via RPC (`HeliusClient.get_mint_authorities`, standard SPL Token,
+pas un endpoint REST tiers fragile). **Fail-closed** : si la vérification
+échoue (erreur réseau), le token est rejeté par prudence plutôt que laissé
+passer sans certitude. Pas d'équivalent standardisé sur Robinhood Chain
+(ERC20) — ce filtre ne s'applique qu'à Solana.
+
 ## Garde-fous (section 4 du cahier des charges)
 
 - Taille max par position : 20-50€ (`sizing`), forcée à 20€ tant que

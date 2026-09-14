@@ -40,6 +40,8 @@ class RawMarketDataLike(Protocol):
     symbol: str
     has_social_links: bool
     paired_with_recognized_quote: bool
+    mint_authority_renounced: bool
+    freeze_authority_renounced: bool
 
 
 MarketDataFetcher = Callable[[str], RawMarketDataLike]
@@ -173,6 +175,8 @@ class TradingEngine:
             breakout_detected=raw.breakout_detected,
             has_social_links=getattr(raw, "has_social_links", False),
             paired_with_recognized_quote=getattr(raw, "paired_with_recognized_quote", False),
+            mint_authority_renounced=getattr(raw, "mint_authority_renounced", True),
+            freeze_authority_renounced=getattr(raw, "freeze_authority_renounced", True),
         )
 
         # Le symbole (ex: "BONK") donne une recherche sociale bien plus

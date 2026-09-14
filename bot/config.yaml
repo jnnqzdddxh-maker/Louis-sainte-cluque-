@@ -119,6 +119,14 @@ scoring:
       solana: ["SOL", "USDC", "USDT"]
       robinhood: ["ETH", "WETH", "USDC", "USDT"]
 
+    # Filtre anti-rug ÉLIMINATOIRE (ajouté le 14/09/2026) : rejette un token
+    # Solana si l'autorité de mint (le créateur peut créer des tokens à
+    # l'infini) ou de freeze (le créateur peut geler vos tokens) n'est pas
+    # révoquée on-chain. Vérifié via RPC (connectors/solana_data.py:
+    # HeliusClient.get_mint_authorities) — sans rapport avec Robinhood Chain
+    # (pas de notion équivalente standardisée sur les tokens ERC20).
+    require_renounced_authorities: true
+
   twitter:
     poll_interval_minutes: 5          # veille périodique, pas de streaming temps réel
     tracked_accounts: []              # à remplir
