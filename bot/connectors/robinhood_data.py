@@ -4,6 +4,7 @@ sert aussi au décodage des transferts/trades pour le wallet tracker).
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import requests
@@ -238,7 +239,10 @@ class DexPaprikaClient:
 
             try:
                 mint_renounced, freeze_renounced = HeliusClient().get_mint_authorities(token_address)
-            except (SolanaMarketDataError, requests.RequestException):
+            except (SolanaMarketDataError, requests.RequestException) as exc:
+                logging.getLogger("connectors.robinhood_data").warning(
+                    "get_mint_authorities a échoué pour %s (fail-closed, rejeté) : %s", token_address, exc
+                )
                 mint_renounced, freeze_renounced = False, False  # fail-closed, voir core/scoring.py
             raw.mint_authority_renounced = mint_renounced
             raw.freeze_authority_renounced = freeze_renounced
