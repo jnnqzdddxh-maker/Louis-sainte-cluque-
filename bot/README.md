@@ -182,13 +182,16 @@ remplissent pas ces métadonnées), ça baisse juste un peu son score.
   wallet_tracking_enabled: false`) — Bitquery a répondu "usage quota
   reached" (14/09/2026), quota gratuit épuisé, pas de plan payant prévu.
   Le scan de marché DexPaprika (gratuit) reste actif sur cette chaîne.
-- **Scans "nouveaux tokens"/"tendances" désactivés côté Solana**
-  (`market_scan.new_listings.solana_enabled` / `trending.solana_enabled` :
-  `false`) — Birdeye a répondu "Compute units usage limit exceeded"
-  (14/09/2026), quota gratuit épuisé après quelques jours de scan toutes
-  les 60s. Le wallet tracker Solana continue de fonctionner normalement
-  (usage bien plus léger). Réactivable en repassant ces deux clés à `true`
-  si le quota se libère ou avec un plan payant.
+- **Scans "nouveaux tokens"/"tendances" Solana rebasculés sur DexPaprika**
+  (14/09/2026) — Birdeye ("Compute units usage limit exceeded") coûtait un
+  quota payant pour ces deux scans ; DexPaprika supporte aussi Solana
+  nativement, gratuitement, sans clé. Le scoring d'un candidat détecté
+  continue d'utiliser Birdeye ensuite (`get_token_overview`, usage bien
+  plus léger, non affecté). Simplification à noter :
+  `DexPaprikaClient._pick_base_token_address` choisit le token qui n'est
+  pas la monnaie de cotation reconnue (SOL/USDC/USDT) dans chaque pool
+  remonté — si aucun des deux ne matche (pool exotique), repli sur le
+  premier token du pool, pas garanti d'être le bon.
 - **Encodage du swap Uniswap v4 sur Robinhood Chain non implémenté**
   (`connectors/robinhood_rpc.py:build_v4_swap_calldata` lève
   volontairement `NotImplementedError`). La chaîne a quelques semaines de

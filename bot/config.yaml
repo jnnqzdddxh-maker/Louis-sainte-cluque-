@@ -203,12 +203,11 @@ market_scan:
   # court : c'est celui qui compte le plus pour la stratégie.
   new_listings:
     enabled: true
-    # Désactivé le 14/09/2026 : Birdeye a répondu "Compute units usage limit
-    # exceeded" (quota gratuit épuisé après quelques jours de scan toutes
-    # les 60s) — pas de plan payant prévu. Le wallet tracker Solana continue
-    # de fonctionner normalement (get_token_overview a un usage bien plus
-    # léger). DexPaprika (Robinhood Chain, gratuit) reste actif.
-    solana_enabled: false
+    # Rebasculé sur DexPaprika (gratuit, sans clé) le 14/09/2026 — Birdeye
+    # ("Compute units usage limit exceeded") coûtait un quota payant pour
+    # ce scan. Le scoring/fetch d'un candidat détecté continue d'utiliser
+    # Birdeye ensuite (get_token_overview, usage bien plus léger).
+    solana_enabled: true
     interval_seconds: 60
     tokens_per_scan: 20
 
@@ -218,7 +217,7 @@ market_scan:
   # raté dessus, mais x2-x5 peut rester pertinent.
   trending:
     enabled: true
-    solana_enabled: false  # même raison que new_listings ci-dessus
+    solana_enabled: true  # même raison que new_listings ci-dessus (DexPaprika, gratuit)
     interval_seconds: 300
     tokens_per_scan: 20
 

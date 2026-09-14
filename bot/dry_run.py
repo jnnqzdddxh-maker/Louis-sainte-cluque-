@@ -108,22 +108,25 @@ async def market_scan_new_listings_loop(engine: TradingEngine, cfg: dict) -> Non
     limit = scan_cfg["tokens_per_scan"]
 
     solana_on = cfg["chains"]["solana"]["enabled"] and scan_cfg.get("solana_enabled", True)
-    birdeye = BirdeyeClient() if solana_on else None
-    dexpaprika = DexPaprikaClient() if cfg["chains"]["robinhood"]["enabled"] else None
+    # DexPaprika (gratuit, sans clé) plutôt que Birdeye (quota payant épuisé
+    # le 14/09/2026) pour la découverte Solana — le scoring/fetch continue
+    # d'utiliser Birdeye ensuite (get_token_overview, usage léger).
+    dexpaprika_solana = DexPaprikaClient(network_id="solana") if solana_on else None
+    dexpaprika_robinhood = DexPaprikaClient() if cfg["chains"]["robinhood"]["enabled"] else None
     if not solana_on:
         log.info("scan nouveaux tokens Solana désactivé (market_scan.new_listings.solana_enabled)")
 
     while True:
         now = datetime.now(timezone.utc)
-        if birdeye is not None:
+        if dexpaprika_solana is not None:
             try:
-                for token_address in birdeye.get_new_listings(limit=limit):
+                for token_address in dexpaprika_solana.get_new_pools(limit=limit, resolve_base_token=True):
                     engine.on_market_scan_hit(token_address, "solana", now, source="market_scan_new_listing")
             except Exception:
                 log.exception("échec du scan nouveaux tokens Solana")
-        if dexpaprika is not None:
+        if dexpaprika_robinhood is not None:
             try:
-                for pool_address in dexpaprika.get_new_pools(limit=limit):
+                for pool_address in dexpaprika_robinhood.get_new_pools(limit=limit):
                     engine.on_market_scan_hit(
                         pool_address, "robinhood", now, source="market_scan_new_listing"
                     )
@@ -143,22 +146,22 @@ async def market_scan_trending_loop(engine: TradingEngine, cfg: dict) -> None:
     limit = scan_cfg["tokens_per_scan"]
 
     solana_on = cfg["chains"]["solana"]["enabled"] and scan_cfg.get("solana_enabled", True)
-    birdeye = BirdeyeClient() if solana_on else None
-    dexpaprika = DexPaprikaClient() if cfg["chains"]["robinhood"]["enabled"] else None
+    dexpaprika_solana = DexPaprikaClient(network_id="solana") if solana_on else None
+    dexpaprika_robinhood = DexPaprikaClient() if cfg["chains"]["robinhood"]["enabled"] else None
     if not solana_on:
         log.info("scan tendances Solana désactivé (market_scan.trending.solana_enabled)")
 
     while True:
         now = datetime.now(timezone.utc)
-        if birdeye is not None:
+        if dexpaprika_solana is not None:
             try:
-                for token_address in birdeye.get_trending_tokens(limit=limit):
+                for token_address in dexpaprika_solana.get_trending_pools(limit=limit, resolve_base_token=True):
                     engine.on_market_scan_hit(token_address, "solana", now, source="market_scan_trending")
             except Exception:
                 log.exception("échec du scan tendances Solana")
-        if dexpaprika is not None:
+        if dexpaprika_robinhood is not None:
             try:
-                for pool_address in dexpaprika.get_trending_pools(limit=limit):
+                for pool_address in dexpaprika_robinhood.get_trending_pools(limit=limit):
                     engine.on_market_scan_hit(
                         pool_address, "robinhood", now, source="market_scan_trending"
                     )

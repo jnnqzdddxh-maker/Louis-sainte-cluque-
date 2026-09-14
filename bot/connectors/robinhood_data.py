@@ -31,6 +31,19 @@ def _raise_for_status_with_body(resp: requests.Response) -> None:
         raise MarketDataError(f"{resp.status_code} sur {resp.url}: {resp.text[:500]}")
 
 
+def _pick_base_token_address(pool: dict, recognized_quotes: set[str]) -> str | None:
+    """Dans un résultat de recherche de pools, choisit le token qui n'est
+    PAS la monnaie de cotation habituelle (SOL/USDC/... ou ETH/WETH/...) —
+    c'est lui le "vrai" candidat, pas le pool lui-même ni sa monnaie de
+    référence. Repli sur le premier token si les deux (ou aucun) matchent."""
+    tokens = pool.get("tokens", []) or []
+    if not tokens:
+        return None
+    non_quote = [t for t in tokens if t.get("symbol", "") not in recognized_quotes]
+    chosen = non_quote[0] if non_quote else tokens[0]
+    return chosen.get("id")
+
+
 @dataclass
 class RawMarketData:
     token_address: str
@@ -68,10 +81,26 @@ class DexPaprikaClient:
         _raise_for_status_with_body(resp)
         return resp.json()
 
-    def get_new_pools(self, limit: int = 20) -> list[str]:
+    def _resolve_addresses(self, pools: list[dict], resolve_base_token: bool) -> list[str]:
+        if not resolve_base_token:
+            return [p["id"] for p in pools]  # comportement historique (Robinhood Chain) : id de pool
+        recognized_quotes = set(
+            load_config()["scoring"]["price_volume_liquidity"]["recognized_quote_tokens"].get(
+                self.network_id, []
+            )
+        )
+        return [_pick_base_token_address(p, recognized_quotes) or p["id"] for p in pools]
+
+    def get_new_pools(self, limit: int = 20, resolve_base_token: bool = False) -> list[str]:
         """Pools tout juste créés, avant même d'avoir accumulé du volume —
         permet de rentrer TÔT, contrairement à get_trending_pools qui ne
         remonte que ce qui a déjà du volume (donc probablement déjà monté).
+
+        `resolve_base_token=True` (utilisé pour Solana) : retourne l'adresse
+        du token réel plutôt que celle du pool, pour rester compatible avec
+        un fetcher de scoring qui attend une vraie adresse de token (ex:
+        Birdeye). Robinhood Chain garde le comportement historique (id de
+        pool) par défaut — voir la note dans dry_run.py.
         """
         resp = requests.get(
             f"{DEXPAPRIKA_BASE_URL}/networks/{self.network_id}/pools/search",
@@ -81,14 +110,13 @@ class DexPaprikaClient:
         )
         _raise_for_status_with_body(resp)
         data = resp.json()
-        return [p["id"] for p in data.get("pools", [])]
+        return self._resolve_addresses(data.get("pools", []), resolve_base_token)
 
-    def get_trending_pools(self, limit: int = 20) -> list[str]:
+    def get_trending_pools(self, limit: int = 20, resolve_base_token: bool = False) -> list[str]:
         """Liste des pools les plus actifs (triés par volume), indépendamment
         de tout wallet suivi — sert au scan de marché autonome (voir
-        core/engine.py:on_market_scan_hit). Retourne des adresses de POOL :
-        même simplification que fetch_raw_market_data (pool == "token
-        address" côté moteur) — voir la note dans dry_run.py.
+        core/engine.py:on_market_scan_hit). Voir get_new_pools pour
+        `resolve_base_token`.
         """
         resp = requests.get(
             f"{DEXPAPRIKA_BASE_URL}/networks/{self.network_id}/pools/search",
@@ -98,7 +126,7 @@ class DexPaprikaClient:
         )
         _raise_for_status_with_body(resp)
         data = resp.json()
-        return [p["id"] for p in data.get("pools", [])]
+        return self._resolve_addresses(data.get("pools", []), resolve_base_token)
 
     def fetch_raw_market_data(self, pool_address: str, token_address: str) -> RawMarketData:
         pool = self.get_pool(pool_address)
