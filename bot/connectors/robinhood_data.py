@@ -92,7 +92,7 @@ class DexPaprikaClient:
         """
         resp = requests.get(
             f"{DEXPAPRIKA_BASE_URL}/networks/{self.network_id}/pools/search",
-            params={"order_by": "volume_usd", "sort": "desc", "limit": limit},
+            params={"order_by": "volume_usd_24h", "sort": "desc", "limit": limit},
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,
         )
