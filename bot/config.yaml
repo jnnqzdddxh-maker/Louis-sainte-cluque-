@@ -52,7 +52,20 @@ scoring:
   wallet_tracker:
     window_minutes: 10                # fenêtre "plusieurs wallets achètent le même token"
     min_wallets_for_full_signal: 3    # nb de wallets suivis atteignant le score max du signal
-    min_wallets_to_trigger: 2         # en dessous, le signal wallet est nul
+    # Baissé de 2 à 1 le 15/09/2026 (demande explicite de l'utilisateur) :
+    # avec un nombre encore modeste de wallets suivis (indépendants, pas un
+    # groupe coordonné), exiger que 2 wallets distincts achètent le MÊME
+    # token dans la même fenêtre de 10 minutes est une coïncidence rare —
+    # la plupart des achats de wallets suivis n'étaient donc jamais scorés
+    # ni affichés (require_wallet_trigger dans core/engine.py:
+    # on_wallet_buy_event). À 1, un seul wallet suivi qui achète suffit à
+    # déclencher l'évaluation complète du token (marché + Twitter) — le
+    # sous-score WALLET lui-même reste à 0 pour un achat solo
+    # (min_wallets_for_full_signal reste à 3 pour la pleine confiance), ça
+    # débloque juste l'évaluation au lieu de l'ignorer. Compromis assumé :
+    # signal plus faible par achat solo qu'une convergence de plusieurs
+    # wallets — à remonter si la liste de wallets suivis grandit beaucoup.
+    min_wallets_to_trigger: 1
     tracked_wallets:
       # Fournis par l'utilisateur (recherche GMGN/Kolscan) le 11/09/2026.
       # Format vérifié (base58, longueur valide) mais performance réelle non

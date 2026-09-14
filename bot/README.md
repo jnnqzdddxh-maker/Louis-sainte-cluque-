@@ -191,6 +191,22 @@ passer sans certitude. Pas d'équivalent standardisé sur Robinhood Chain
 
 ## Limites connues (à traiter avant d'engager du capital réel)
 
+- **Seuil de déclenchement wallet baissé de 2 à 1**
+  (`scoring.wallet_tracker.min_wallets_to_trigger`, 15/09/2026, demande
+  explicite de l'utilisateur : "j'en ai pas beaucoup pour l'instant") —
+  avec un nombre encore modeste de wallets suivis (indépendants, pas un
+  groupe coordonné), exiger que 2 wallets distincts achètent le MÊME token
+  dans la même fenêtre de 10 minutes (`window_minutes`) est une coïncidence
+  rare : la plupart des achats de wallets suivis n'étaient donc jamais
+  scorés ni affichés (`require_wallet_trigger` dans core/engine.py:
+  on_wallet_buy_event ignore l'événement en dessous du seuil). À 1, un seul
+  wallet suivi qui achète suffit à déclencher l'évaluation complète du
+  token (marché + Twitter) — le sous-score WALLET lui-même reste à 0 pour
+  un achat solo (`min_wallets_for_full_signal` reste à 3 pour la pleine
+  confiance), ça débloque juste l'évaluation au lieu de l'ignorer
+  totalement. Compromis assumé : signal plus faible par achat solo qu'une
+  convergence de plusieurs wallets — à remonter si la liste de wallets
+  suivis grandit beaucoup.
 - **Toute l'échelle de confiance baissée** (`scoring.confidence_thresholds`,
   14/09/2026) — le bot n'a ouvert aucune position en plusieurs heures de
   dry-run réel : à 40, un candidat sans wallet (plafonné à ~55/100)
