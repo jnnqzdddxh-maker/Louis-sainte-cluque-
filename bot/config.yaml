@@ -289,6 +289,29 @@ market_scan:
       - "So11111111111111111111111111111111111111112"  # SOL (wrapped)
     robinhood: []  # à compléter si un stablecoin/WETH apparaît dans le bruit du scan
 
+  # Ajouté le 15/09/2026 : observé en dry-run réel, la quasi-totalité (24 sur
+  # 38 dans le log analysé) des rejets anti-rug Solana affichaient une
+  # liquidité EXACTEMENT à 0$, pas juste sous le seuil. Cause : le scan
+  # "nouveaux tokens" capture chaque pool pump.fun à la seconde de sa
+  # création, avant que DexPaprika ait indexé sa vraie liquidité (le bonding
+  # curve a pourtant du SOL derrière dès le premier achat) -- et comme
+  # pump.fun crée des dizaines de tokens/minute, un token ne reste dans le
+  # top 20 "plus récents" qu'un seul cycle de scan avant d'être poussé hors
+  # de la liste par des tokens encore plus récents : il n'est donc jamais
+  # réévalué, même si sa liquidité réelle dépasse le seuil deux minutes plus
+  # tard. Baisser encore min_liquidity_usd n'aurait presque rien changé (la
+  # plupart des rejets sont à 0$ pile). La vraie correction : garder en
+  # mémoire un token rejeté UNIQUEMENT pour liquidité insuffisante (pas pour
+  # mint/freeze authority révoquée, qui ne change jamais) et le réévaluer
+  # automatiquement pendant quelques minutes, indépendamment de sa présence
+  # dans les scans suivants -- voir core/engine.py:TradingEngine.
+  # recheck_liquidity_watchlist et dry_run.py:liquidity_watchlist_loop.
+  liquidity_watchlist:
+    enabled: true
+    recheck_interval_seconds: 30
+    max_age_minutes: 15    # au-delà, on abandonne (probablement mort-né)
+    max_attempts: 30       # ceinture-bretelles si max_age_minutes est mal calé
+
 fees:
   # Point ouvert (section 8) : à vérifier précisément sur Robinhood Chain
   # une fois la période de gas gratuit terminée (90 jours).

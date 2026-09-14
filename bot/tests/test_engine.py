@@ -1,6 +1,6 @@
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -35,6 +35,8 @@ class FakeRawMarketData:
     symbol: str = "FAKE"
     has_social_links: bool = True
     paired_with_recognized_quote: bool = True
+    mint_authority_renounced: bool = True
+    freeze_authority_renounced: bool = True
 
 
 def _engine(tmp_path, fetchers) -> TradingEngine:
@@ -107,3 +109,96 @@ def test_excluded_stablecoin_is_never_scored(tmp_path):
 
     assert usdc not in engine.candidates
     assert len(engine.position_manager.positions) == 0
+
+
+def _zero_liquidity_market_fetcher(_token_address: str) -> FakeRawMarketData:
+    """Simule un pool pump.fun tout juste créé : DexPaprika n'a pas encore
+    indexé sa vraie liquidité (voir README/config.yaml:market_scan.
+    liquidity_watchlist, 15/09/2026 -- observé en dry-run réel : 24 des 38
+    rejets Solana d'un même log étaient à liquidité EXACTEMENT 0$)."""
+    return FakeRawMarketData(
+        price_usd=1.0,
+        liquidity_usd=0.0,
+        volume_24h_usd=0.0,
+        volume_avg_baseline_usd=0.0,
+        top_holder_concentration_pct=5,
+        breakout_detected=False,
+    )
+
+
+def test_liquidity_rejected_token_is_added_to_watchlist_not_lost(tmp_path):
+    engine = _engine(tmp_path, {"solana": _zero_liquidity_market_fetcher})
+    engine.on_market_scan_hit("FRESH_TOKEN", "solana", NOW, source="market_scan_new_listing")
+
+    assert engine.candidates["FRESH_TOKEN"].score.rejected_anti_rug
+    assert "liquidité" in engine.candidates["FRESH_TOKEN"].score.rejection_reason
+    assert "FRESH_TOKEN" in engine.liquidity_watchlist
+    assert engine.liquidity_watchlist["FRESH_TOKEN"]["attempts"] == 1
+
+
+def test_mint_authority_rejection_is_not_added_to_watchlist(tmp_path):
+    """Contrairement à la liquidité, l'autorité mint/freeze révoquée ne
+    change pas dans le temps -- pas d'intérêt à réessayer."""
+
+    def rugged_fetcher(_token_address: str) -> FakeRawMarketData:
+        return FakeRawMarketData(
+            price_usd=1.0,
+            liquidity_usd=50_000,
+            volume_24h_usd=100_000,
+            volume_avg_baseline_usd=50_000,
+            top_holder_concentration_pct=5,
+            breakout_detected=True,
+            mint_authority_renounced=False,
+        )
+
+    engine = _engine(tmp_path, {"solana": rugged_fetcher})
+    engine.on_market_scan_hit("RUGGED_TOKEN", "solana", NOW, source="market_scan_new_listing")
+
+    assert engine.candidates["RUGGED_TOKEN"].score.rejected_anti_rug
+    assert "RUGGED_TOKEN" not in engine.liquidity_watchlist
+
+
+def test_watchlist_recheck_opens_a_position_once_liquidity_catches_up(tmp_path):
+    """Reproduit le scénario concret du 15/09/2026 : un token pump.fun
+    d'abord vu avec 0$ de liquidité (rejeté), puis réévalué automatiquement
+    -- sans attendre qu'il réapparaisse dans un scan -- une fois que sa
+    vraie liquidité a été indexée."""
+    liquidity_by_call = iter([0.0, 0.0, 3_000.0])  # 3e appel : liquidité enfin indexée
+
+    def catching_up_fetcher(_token_address: str) -> FakeRawMarketData:
+        liq = next(liquidity_by_call, 3_000.0)
+        return FakeRawMarketData(
+            price_usd=1.0,
+            liquidity_usd=liq,
+            volume_24h_usd=3_000.0 if liq > 0 else 0.0,
+            volume_avg_baseline_usd=0.0,
+            top_holder_concentration_pct=5,
+            breakout_detected=True,
+            paired_with_recognized_quote=True,
+        )
+
+    engine = _engine(tmp_path, {"solana": catching_up_fetcher})
+    engine.on_market_scan_hit("CATCHING_UP_TOKEN", "solana", NOW, source="market_scan_new_listing")
+    assert "CATCHING_UP_TOKEN" in engine.liquidity_watchlist
+
+    engine.recheck_liquidity_watchlist(NOW)  # 2e appel : toujours 0$
+    assert "CATCHING_UP_TOKEN" in engine.liquidity_watchlist
+    assert len(engine.position_manager.positions) == 0
+
+    engine.recheck_liquidity_watchlist(NOW)  # 3e appel : liquidité catchée
+    open_positions = [p for p in engine.position_manager.positions.values() if not p.closed]
+    assert len(open_positions) == 1
+    assert open_positions[0].token_id == "CATCHING_UP_TOKEN"
+    assert "CATCHING_UP_TOKEN" not in engine.liquidity_watchlist  # nettoyé une fois passé
+
+
+def test_watchlist_entry_expires_after_max_age(tmp_path):
+    engine = _engine(tmp_path, {"solana": _zero_liquidity_market_fetcher})
+    engine.on_market_scan_hit("STALE_TOKEN", "solana", NOW, source="market_scan_new_listing")
+    assert "STALE_TOKEN" in engine.liquidity_watchlist
+
+    max_age = CFG["market_scan"]["liquidity_watchlist"]["max_age_minutes"]
+    later = NOW + timedelta(minutes=max_age + 1)
+    engine.recheck_liquidity_watchlist(later)
+
+    assert "STALE_TOKEN" not in engine.liquidity_watchlist

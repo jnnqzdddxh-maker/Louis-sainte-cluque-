@@ -234,6 +234,30 @@ async def price_tick_loop(engine: TradingEngine, cfg: dict) -> None:
         await asyncio.sleep(interval)
 
 
+# -- Réévaluation des tokens rejetés uniquement pour liquidité insuffisante --
+
+async def liquidity_watchlist_loop(engine: TradingEngine, cfg: dict) -> None:
+    """Voir config.yaml:market_scan.liquidity_watchlist et
+    core/engine.py:TradingEngine.recheck_liquidity_watchlist — un pool
+    pump.fun tout juste créé affiche souvent 0$ de liquidité le temps que
+    DexPaprika l'indexe, et ne reste que quelques dizaines de secondes dans
+    le top "nouveaux tokens" avant d'être remplacé par des tokens encore
+    plus récents. Sans cette boucle, un tel token n'aurait jamais de
+    seconde chance même si sa vraie liquidité dépasse le seuil peu après.
+    """
+    wl_cfg = cfg.get("market_scan", {}).get("liquidity_watchlist", {})
+    if not wl_cfg.get("enabled"):
+        return
+    interval = wl_cfg.get("recheck_interval_seconds", 30)
+    while True:
+        try:
+            now = datetime.now(timezone.utc)
+            await asyncio.to_thread(engine.recheck_liquidity_watchlist, now)
+        except Exception:
+            log.exception("échec de la réévaluation de la liste d'attente liquidité")
+        await asyncio.sleep(interval)
+
+
 async def run() -> None:
     cfg = load_config()
     if cfg["mode"] != "dry_run":
@@ -262,6 +286,7 @@ async def run() -> None:
         market_scan_new_listings_loop(engine, cfg),
         market_scan_trending_loop(engine, cfg),
         price_tick_loop(engine, cfg),
+        liquidity_watchlist_loop(engine, cfg),
     )
 
 

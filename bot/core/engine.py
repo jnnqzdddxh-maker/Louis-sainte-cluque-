@@ -13,7 +13,7 @@ signer/envoyer une transaction tant qu'il vaut True.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Protocol
 
 from core.config import load_config
@@ -103,6 +103,12 @@ class TradingEngine:
         self.state_store = state_store or StateStore(config=self.cfg)
         self.candidates: dict[str, Candidate] = {}
         self._token_to_position: dict[str, str] = {}
+        # Tokens rejetés UNIQUEMENT pour liquidité insuffisante (jamais pour
+        # mint/freeze authority, qui ne change pas dans le temps) : réévalués
+        # périodiquement pendant un moment, indépendamment de leur présence
+        # dans les scans suivants — voir recheck_liquidity_watchlist et le
+        # commentaire dans config.yaml:market_scan.liquidity_watchlist.
+        self.liquidity_watchlist: dict[str, dict] = {}
         excluded_cfg = self.cfg.get("market_scan", {}).get("excluded_tokens", {})
         self._excluded_tokens: dict[str, set[str]] = {
             chain: set(addresses) for chain, addresses in excluded_cfg.items()
@@ -192,7 +198,22 @@ class TradingEngine:
         )
 
         if score.rejected_anti_rug:
+            reason = score.rejection_reason or ""
+            wl_cfg = self.cfg.get("market_scan", {}).get("liquidity_watchlist", {})
+            if wl_cfg.get("enabled") and reason.startswith("liquidité"):
+                # Liquidité insuffisante n'est PAS définitif (contrairement à
+                # mint/freeze authority) : un pool pump.fun tout juste créé
+                # affiche souvent 0$ le temps que DexPaprika l'indexe, alors
+                # que sa vraie liquidité peut dépasser le seuil quelques
+                # minutes plus tard. On le garde en mémoire pour réévaluation
+                # (voir recheck_liquidity_watchlist), au lieu de le perdre
+                # définitivement s'il ne réapparaît pas dans un scan suivant.
+                entry = self.liquidity_watchlist.setdefault(
+                    token_address, {"chain": chain, "first_seen": now, "source": source, "attempts": 0}
+                )
+                entry["attempts"] += 1
             return
+        self.liquidity_watchlist.pop(token_address, None)  # a fini par passer le filtre
 
         min_conf = Confidence(self.cfg["execution"]["min_confidence_to_trade"])
         if _CONFIDENCE_ORDER.index(score.confidence) < _CONFIDENCE_ORDER.index(min_conf):
@@ -202,6 +223,31 @@ class TradingEngine:
             return  # déjà une position ouverte sur ce token
 
         self._try_open_position(token_address, chain, raw.price_usd, score.confidence, now)
+
+    # -- réévaluation des tokens rejetés uniquement pour liquidité insuffisante --
+    def recheck_liquidity_watchlist(self, now: datetime) -> None:
+        """Réévalue les tokens de `liquidity_watchlist` (voir config.yaml:
+        market_scan.liquidity_watchlist) sans attendre qu'ils réapparaissent
+        dans un scan -- un pool pump.fun tout juste créé affiche souvent 0$
+        de liquidité le temps que DexPaprika l'indexe, et ne reste que
+        quelques dizaines de secondes dans le top "nouveaux tokens" avant
+        d'être poussé hors de la liste par des tokens encore plus récents.
+        Sans ce mécanisme, un token dont la vraie liquidité dépasse le seuil
+        deux minutes plus tard n'aurait jamais de seconde chance."""
+        wl_cfg = self.cfg.get("market_scan", {}).get("liquidity_watchlist", {})
+        max_age = timedelta(minutes=wl_cfg.get("max_age_minutes", 15))
+        max_attempts = wl_cfg.get("max_attempts", 30)
+
+        for token_address, entry in list(self.liquidity_watchlist.items()):
+            if token_address in self._token_to_position:
+                self.liquidity_watchlist.pop(token_address, None)
+                continue
+            if now - entry["first_seen"] > max_age or entry["attempts"] >= max_attempts:
+                self.liquidity_watchlist.pop(token_address, None)  # probablement mort-né, on abandonne
+                continue
+            self._maybe_score_candidate(
+                token_address, entry["chain"], now, require_wallet_trigger=False, source="liquidity_recheck"
+            )
 
     def _try_open_position(
         self, token_address: str, chain: str, price_usd: float, confidence: Confidence, now: datetime

@@ -262,6 +262,27 @@ passer sans certitude. Pas d'équivalent standardisé sur Robinhood Chain
   rejeter un token pour toujours), et `DexPaprikaClient` réutilise la MÊME
   instance de `HeliusClient` sur toute la durée du run au lieu d'en créer
   une neuve à chaque appel.
+- **Liste d'attente pour les tokens rejetés uniquement pour liquidité
+  insuffisante** (`core/engine.py:TradingEngine.liquidity_watchlist` /
+  `recheck_liquidity_watchlist`, `dry_run.py:liquidity_watchlist_loop`,
+  `config.yaml:market_scan.liquidity_watchlist`, 15/09/2026) — log dry-run
+  réel fourni par l'utilisateur après les 3 fixes ci-dessus : toujours
+  aucune position ouverte. Analyse : sur 38 candidats Solana, 34 rejetés
+  pour liquidité insuffisante, dont **24 à EXACTEMENT 0$** (pas juste sous
+  le seuil de 1500$). Cause : le scan "nouveaux tokens" capture chaque pool
+  pump.fun à la seconde de sa création, avant que DexPaprika ait indexé sa
+  vraie liquidité (le bonding curve a pourtant du SOL derrière dès le
+  premier achat) — et comme pump.fun crée des dizaines de tokens/minute, un
+  token ne reste dans le top 20 "plus récents" qu'un seul cycle de scan
+  avant d'être poussé hors de la liste par des tokens encore plus récents :
+  il n'était donc jamais réévalué, même si sa liquidité réelle dépassait le
+  seuil deux minutes plus tard. Baisser encore `min_liquidity_usd` n'aurait
+  presque rien changé (la plupart des rejets sont à 0$ pile, pas "presque
+  assez"). Corrigé : un token rejeté UNIQUEMENT pour liquidité insuffisante
+  (jamais pour mint/freeze authority révoquée, qui ne change pas dans le
+  temps) est gardé en mémoire et réévalué automatiquement toutes les 30s
+  pendant 15 minutes maximum (`liquidity_watchlist.max_age_minutes`),
+  indépendamment de sa présence dans les scans suivants.
 - **Suivi des wallets Robinhood Chain désactivé** (`chains.robinhood.
   wallet_tracking_enabled: false`) — Bitquery a répondu "usage quota
   reached" (14/09/2026), quota gratuit épuisé, pas de plan payant prévu.
