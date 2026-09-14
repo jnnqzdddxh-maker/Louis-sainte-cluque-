@@ -177,11 +177,34 @@ class DexPaprikaClient:
         Pas de moyenne de volume directe : volume_usd_7d/7 sert de proxy
         pour la moyenne quotidienne "normale", comparée à volume_usd_24h
         pour détecter un pic.
+
+        Bug corrigé le 14/09/2026 (score max observé en dry-run réel : 4/100,
+        alors qu'un market_subscore de ~90 aurait dû être atteignable) :
+        pour un token sans 7 jours d'historique (volume_usd_7d == 0, le cas
+        NORMAL pour un token tout juste créé — exactement ceux que le scan
+        "nouveaux tokens" cible), l'ancien code faisait
+        `baseline = volume_24h` (repli), puis testait
+        `volume_24h > baseline` == `volume_24h > volume_24h` : toujours faux
+        par construction, quel que soit le prix. Le breakout était donc
+        structurellement indétectable sur les tokens les plus frais. Pour ce
+        cas, on se base uniquement sur le momentum de prix (seul signal
+        disponible sans historique de volume fiable) plutôt que sur une
+        comparaison tautologique.
         """
         volume_24h = float(pool.get("volume_usd_24h", 0.0) or 0.0)
         volume_7d = float(pool.get("volume_usd_7d", 0.0) or 0.0)
-        baseline = volume_7d / 7 if volume_7d > 0 else volume_24h
         price_change_1h = float(pool.get("price_change_percentage_1h", 0.0) or 0.0)
+        price_change_5m = float(pool.get("price_change_percentage_5m", 0.0) or 0.0)
+        # Historique fiable seulement si volume_7d dépasse un simple jour de
+        # trading répété 7 fois (sinon volume_7d == volume_24h ou proche, ce
+        # qui n'apporte aucune info de "moyenne" supplémentaire).
+        has_reliable_baseline = volume_7d > volume_24h
+        if has_reliable_baseline:
+            baseline = volume_7d / 7
+            breakout_detected = price_change_1h > 0 and volume_24h > baseline
+        else:
+            baseline = 0.0
+            breakout_detected = price_change_1h > 0 or price_change_5m > 0
 
         pool_tokens = pool.get("tokens", []) or []
         base_symbol = token_address
@@ -211,7 +234,7 @@ class DexPaprikaClient:
             volume_24h_usd=volume_24h,
             volume_avg_baseline_usd=baseline,
             top_holder_concentration_pct=0.0,  # DexPaprika ne fournit pas la répartition holders
-            breakout_detected=price_change_1h > 0 and volume_24h > baseline,
+            breakout_detected=breakout_detected,
             symbol=base_symbol,
             paired_with_recognized_quote=paired_with_recognized,
         )

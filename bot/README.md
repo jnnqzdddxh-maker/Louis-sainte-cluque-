@@ -205,6 +205,24 @@ passer sans certitude. Pas d'équivalent standardisé sur Robinhood Chain
   "très haute") — le palier x100 reste donc réservé aux tokens corroborés
   par un wallet suivi, pas à un simple pic de volume. Plus de trades, sur
   des signaux plus faibles — à surveiller de près sur les prochains jours.
+- **Bug corrigé : breakout structurellement indétectable sur les tokens tout
+  juste créés** (`connectors/robinhood_data.py:_pool_to_raw_market_data`,
+  14/09/2026) — score max observé en dry-run réel : 4/100, signalé par
+  l'utilisateur comme suspect ("le max score que j'ai eu c'est 4 c'est pas
+  normal"), et il avait raison. Cause : pour un token sans 7 jours
+  d'historique (`volume_usd_7d == 0`, le cas NORMAL pour un token qui vient
+  d'être créé — exactement ceux que le scan "nouveaux tokens" cible),
+  l'ancien code faisait `baseline = volume_24h` (repli), puis testait
+  `volume_24h > baseline`, soit comparer une valeur à elle-même : toujours
+  faux, quel que soit le prix. Le breakout (30 pts sur 100 du score marché)
+  était donc à 0 sur tous les tokens les plus frais, et le bonus de
+  légitimité (`has_social_links`) est toujours `False` avec DexPaprika — il
+  ne restait souvent que les 10 pts de `paired_with_recognized_quote`, soit
+  `10 × 0.40 = 4` de score total. Corrigé : historique fiable seulement si
+  `volume_usd_7d > volume_usd_24h` (plus qu'un simple jour de trading) ;
+  sinon le breakout se base sur le momentum de prix seul
+  (`price_change_percentage_1h`/`5m`), le seul signal réellement disponible
+  sur un token sans historique de volume.
 - **Suivi des wallets Robinhood Chain désactivé** (`chains.robinhood.
   wallet_tracking_enabled: false`) — Bitquery a répondu "usage quota
   reached" (14/09/2026), quota gratuit épuisé, pas de plan payant prévu.
