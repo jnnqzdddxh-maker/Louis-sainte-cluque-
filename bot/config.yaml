@@ -68,6 +68,23 @@ scoring:
         - "Bi4rd5FH5bYEN8scZ7wevxNZyNmKHdaBcvewdPFxYdLt"
         - "BQVz7fQ1WsQmSTMY3umdPEPPTm1sdcBcX9sP7o6kPRmB"
         - "F9zT1F46HAoPanR4NC1Yw7TyP8Z9tCavTe48mrzK7aN4"
+        # Lot 2, fourni par l'utilisateur le 14/09/2026.
+        - "6S8GezkxYUfZy9JPtYnanbcZTMB87Wjt1qx3c6ELajKC"
+        - "PMJA8UQDyWTFw2Smhyp9jGA6aTaP7jKHR7BPudrgyYN"
+        - "GUjYXh4aR9tDJ1yU1gsa91LtivS5t84CZF3mP5SBkKhz"
+        - "FK5z4HVnGCLbMNATcAVm81551Ng6NZU6uRFezzMKdF3k"
+        - "BunY1tQd2UD6TzYUgK35LRVEfiNMZk5sq25ZVnSK7Li9"
+        - "67Nwfi9hgwqhxGoovT2JGLU67uxfomLwQAWncjXXzU6U"
+        - "GJA1HEbxGnqBhBifH9uQauzXSB53to5rhDrzmKxhSU65"
+        - "215nhcAHjQQGgwpQSJQ7zR26etbjjtVdW74NLzwEgQjP"
+        - "4fZFcK8ms3bFMpo1ACzEUz8bH741fQW4zhAMGd5yZMHu"
+        - "98T65wcMEjoNLDTJszBHGZEX75QRe8QaANXokv4yw3Mp"
+        - "AreSXNRAsnwrKaQvg2H5trpQNqfprRPT62Y5EDU5h7xf"
+        # (CKcWAvvDYr2H3Wj3ACr5zRynrYRSzir2zE5bTf8wiUmT déjà dans le lot 1, pas dupliqué)
+        - "sAdNbe1cKNMDqDsa4npB3TfL62T14uAo2MsUQfLvzLT"
+        - "DYAn4XpAkN5mhiXkRB7dGq4Jadnx6XYgu8L5b3WGhbrt"
+        - "2p2mgFLmzN82sShZeAaBGmj9zFpam4xu8g4g3wqx2ks6"
+        - "E7gozEiAPNhpJsdS52amhhN2XCAqLZa7WPrhyR6C8o4S"
       # Fournis par l'utilisateur (leaderboard Fomo.family, Robinhood Chain,
       # classement 30 jours) le 11/09/2026. Même remarque de prudence que
       # pour Solana, renforcée : chaîne très récente, et le classement Fomo
