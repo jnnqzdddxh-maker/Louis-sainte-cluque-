@@ -241,6 +241,27 @@ passer sans certitude. Pas d'équivalent standardisé sur Robinhood Chain
   >= 1.5x la liquidité pour le score plein) — une métrique d'activité
   réelle valable dès le jour de création du token, contrairement à une
   moyenne 7 jours qui n'existe pas encore.
+- **Bug corrigé : quota Helius épuisé en quelques minutes, faute de cache**
+  (`connectors/solana_data.py:HeliusClient`, `connectors/robinhood_data.py:
+  DexPaprikaClient.fetch_raw_market_data_by_token`, 15/09/2026) — logs
+  dry-run réels : "429 sur .../getAccountInfo: max usage reached" sur
+  quasiment CHAQUE candidat Solana, quelques minutes après le démarrage.
+  `get_mint_authorities` rejette par fail-closed sur erreur (voulu, c'est le
+  filtre anti-rug) — mais l'ancien code recréait un `HeliusClient()` tout
+  neuf à chaque appel, sans aucun cache, et rappelait Helius pour un token
+  déjà vérifié à chaque fois qu'il ressortait dans un cycle de scan suivant
+  (fréquent : les listes "nouveaux tokens"/"tendances" se répètent). Pour du
+  20 tokens/60s (scan nouveaux tokens) + 20/300s (tendances), ça fait vite
+  des centaines d'appels Helius par heure pour une donnée (mint/freeze
+  authority) qui ne change quasiment jamais une fois vérifiée. Résultat :
+  quota gratuit épuisé très vite, TOUS les candidats Solana rejetés par le
+  fail-closed, quel que soit leur score marché (indépendamment des deux
+  bugs de scoring ci-dessus). Corrigé : `HeliusClient` met en cache
+  (mint_renounced, freeze_renounced) par adresse de token dès la première
+  vérification réussie (pas mis en cache sur erreur — un 429 ne doit pas
+  rejeter un token pour toujours), et `DexPaprikaClient` réutilise la MÊME
+  instance de `HeliusClient` sur toute la durée du run au lieu d'en créer
+  une neuve à chaque appel.
 - **Suivi des wallets Robinhood Chain désactivé** (`chains.robinhood.
   wallet_tracking_enabled: false`) — Bitquery a répondu "usage quota
   reached" (14/09/2026), quota gratuit épuisé, pas de plan payant prévu.

@@ -82,9 +82,21 @@ class DexPaprikaClient:
     def __init__(self, api_key: str | None = None, network_id: str = "robinhood"):
         self.api_key = api_key or get_secret("dexpaprika_api_key_env", required=False)
         self.network_id = network_id
+        # Instance unique et réutilisée (pas une par appel) : voir
+        # fetch_raw_market_data_by_token — son cache mémoire par token
+        # (connectors/solana_data.py:HeliusClient) n'a d'effet que si c'est
+        # la MÊME instance qui sert tous les appels du run.
+        self._helius_client = None
 
     def _headers(self) -> dict:
         return {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+
+    def _get_helius(self):
+        if self._helius_client is None:
+            from connectors.solana_data import HeliusClient
+
+            self._helius_client = HeliusClient()
+        return self._helius_client
 
     def get_pool(self, pool_address: str) -> dict:
         resp = requests.get(
@@ -257,11 +269,19 @@ class DexPaprikaClient:
 
         if self.network_id == "solana":
             # Filtre anti-rug éliminatoire indépendant de Birdeye — RPC
-            # Helius, pas concerné par le quota Birdeye.
-            from connectors.solana_data import HeliusClient, MarketDataError as SolanaMarketDataError
+            # Helius, pas concerné par le quota Birdeye. Passe par
+            # self._get_helius() (instance réutilisée, PAS HeliusClient()
+            # recréé à chaque appel comme avant le 15/09/2026) pour que le
+            # cache mint/freeze authority par token fasse effet — sans ça,
+            # un token qui ressort dans plusieurs cycles de scan redéclenchait
+            # un appel RPC identique à chaque fois, épuisant le quota
+            # gratuit Helius en quelques minutes ("429 max usage reached")
+            # et faisant rejeter TOUS les candidats Solana par le fail-closed
+            # ci-dessous, quel que soit leur score marché.
+            from connectors.solana_data import MarketDataError as SolanaMarketDataError
 
             try:
-                mint_renounced, freeze_renounced = HeliusClient().get_mint_authorities(token_address)
+                mint_renounced, freeze_renounced = self._get_helius().get_mint_authorities(token_address)
             except (SolanaMarketDataError, requests.RequestException) as exc:
                 logging.getLogger("connectors.robinhood_data").warning(
                     "get_mint_authorities a échoué pour %s (fail-closed, rejeté) : %s", token_address, exc

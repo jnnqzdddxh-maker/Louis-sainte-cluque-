@@ -208,6 +208,16 @@ class HeliusClient:
 
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or get_secret("helius_api_key_env")
+        # Cache mémoire par adresse de token — ajouté le 15/09/2026 : sans
+        # ça, un token qui ressort dans plusieurs cycles de scan (fréquent :
+        # les listes "nouveaux tokens"/"tendances" se répètent d'un cycle à
+        # l'autre) redéclenchait un appel RPC Helius identique à chaque fois,
+        # pour une donnée qui ne change quasiment jamais une fois vérifiée
+        # (mint/freeze authority révoquée ou pas). Observé en dry-run réel :
+        # quota Helius épuisé ("429 max usage reached") en quelques minutes,
+        # rejetant TOUS les candidats Solana par le fail-closed de
+        # get_mint_authorities, quel que soit leur score marché.
+        self._mint_authority_cache: dict[str, tuple[bool, bool]] = {}
 
     def get_asset(self, token_address: str) -> dict:
         resp = requests.post(
@@ -227,7 +237,16 @@ class HeliusClient:
         freeze_authority_renounced) — True si le champ correspondant est null
         on-chain. Spec SPL Token standard, stable (contrairement aux
         endpoints REST tiers) : voir https://spl.solana.com/token.
+
+        Résultat mis en cache par adresse de token (voir __init__) : ne
+        recontacte Helius que pour un token jamais vu par CETTE instance. En
+        cas d'erreur (ex: 429 quota), on NE met PAS en cache — on ne connaît
+        pas la vraie réponse, donc pas de "faux négatif" permanent : le
+        prochain appel retentera (et pourra réussir une fois le quota
+        reconstitué), au lieu de rejeter ce token pour toujours.
         """
+        if token_address in self._mint_authority_cache:
+            return self._mint_authority_cache[token_address]
         resp = requests.post(
             f"{HELIUS_RPC_URL}/?api-key={self.api_key}",
             json={
@@ -246,4 +265,6 @@ class HeliusClient:
         if not value:
             raise MarketDataError(f"Compte introuvable on-chain pour {token_address}")
         info = value["data"]["parsed"]["info"]
-        return info.get("mintAuthority") is None, info.get("freezeAuthority") is None
+        result = info.get("mintAuthority") is None, info.get("freezeAuthority") is None
+        self._mint_authority_cache[token_address] = result
+        return result
