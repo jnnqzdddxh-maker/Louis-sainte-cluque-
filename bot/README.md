@@ -191,14 +191,20 @@ passer sans certitude. Pas d'équivalent standardisé sur Robinhood Chain
 
 ## Limites connues (à traiter avant d'engager du capital réel)
 
-- **Seuil "moyenne" baissé de 40 à 20** (`scoring.confidence_thresholds.
-  low_max`, 14/09/2026) — à 40, le bot n'a ouvert aucune position en
-  plusieurs heures de dry-run réel : un candidat repéré uniquement par le
-  scan (sans wallet, plafonné à ~55/100 max) devait avoir un score marché
-  quasi parfait pour devenir tradable. Compromis explicitement demandé par
-  l'utilisateur ("il faut que le bot prenne un peu plus de risque") : plus
-  de trades, sur des signaux plus faibles — à surveiller de près sur les
-  prochains jours de dry-run.
+- **Toute l'échelle de confiance baissée** (`scoring.confidence_thresholds`,
+  14/09/2026) — le bot n'a ouvert aucune position en plusieurs heures de
+  dry-run réel : à 40, un candidat sans wallet (plafonné à ~55/100)
+  devait avoir un score marché quasi parfait pour devenir tradable. Demande
+  explicite de l'utilisateur ("il faut que le bot prenne un peu plus de
+  risque", puis "baisser chaque palier un peu") :
+  - `low_max` 39 → 19 (moyenne dès 20 au lieu de 40)
+  - `medium_max` 64 → 50, `high_max` 84 → 70 (haute/très haute plus
+    accessibles aussi)
+  Propriété intentionnellement préservée malgré la baisse : le plafond
+  d'un candidat sans wallet reste ~55/100, en dessous de 71 (nouveau seuil
+  "très haute") — le palier x100 reste donc réservé aux tokens corroborés
+  par un wallet suivi, pas à un simple pic de volume. Plus de trades, sur
+  des signaux plus faibles — à surveiller de près sur les prochains jours.
 - **Suivi des wallets Robinhood Chain désactivé** (`chains.robinhood.
   wallet_tracking_enabled: false`) — Bitquery a répondu "usage quota
   reached" (14/09/2026), quota gratuit épuisé, pas de plan payant prévu.

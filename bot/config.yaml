@@ -140,10 +140,18 @@ scoring:
     # marché quasi parfait pour devenir tradable — trop strict, le bot
     # n'ouvrait jamais aucune position. Compromis assumé : plus de trades,
     # sur des signaux plus faibles.
+    # medium_max et high_max baissés aussi le 14/09/2026 (demande explicite :
+    # "baisser chaque palier un peu") — 84 était hors d'atteinte même pour
+    # un score marché parfait sans wallet (plafond ~55/100), donc "haute"
+    # était quasi jamais atteint côté scan seul. 70 reste au-dessus de ce
+    # plafond de 55 : un token SANS corroboration wallet ne peut toujours
+    # pas atteindre "très haute" ni débloquer le palier x100 — cette
+    # propriété (x100 réservé aux tokens corroborés par un wallet) est
+    # intentionnellement préservée malgré la baisse.
     low_max: 19         # 0-19   -> faible
-    medium_max: 64       # 20-64  -> moyenne
-    high_max: 84         # 65-84  -> haute
-    # >= 85                        -> très haute (seul niveau qui débloque le palier x100)
+    medium_max: 50       # 20-50  -> moyenne
+    high_max: 70         # 51-70  -> haute
+    # >= 71                        -> très haute (seul niveau qui débloque le palier x100)
 
 # ----------------------------------------------------------------------------
 # Sizing et garde-fous globaux
