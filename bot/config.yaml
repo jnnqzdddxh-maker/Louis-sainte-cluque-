@@ -135,8 +135,13 @@ scoring:
 
   confidence_thresholds:
     # score total (0-100) -> niveau de confiance
-    low_max: 39         # 0-39   -> faible
-    medium_max: 64       # 40-64  -> moyenne
+    # Baissé de 39 à 19 le 14/09/2026 : à 39, un candidat repéré uniquement
+    # par le scan (sans wallet, plafonné à ~55/100 max) devait avoir un score
+    # marché quasi parfait pour devenir tradable — trop strict, le bot
+    # n'ouvrait jamais aucune position. Compromis assumé : plus de trades,
+    # sur des signaux plus faibles.
+    low_max: 19         # 0-19   -> faible
+    medium_max: 64       # 20-64  -> moyenne
     high_max: 84         # 65-84  -> haute
     # >= 85                        -> très haute (seul niveau qui débloque le palier x100)
 
