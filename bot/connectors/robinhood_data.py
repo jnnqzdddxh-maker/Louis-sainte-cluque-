@@ -35,11 +35,22 @@ def _pick_base_token_address(pool: dict, recognized_quotes: set[str]) -> str | N
     """Dans un résultat de recherche de pools, choisit le token qui n'est
     PAS la monnaie de cotation habituelle (SOL/USDC/... ou ETH/WETH/...) —
     c'est lui le "vrai" candidat, pas le pool lui-même ni sa monnaie de
-    référence. Repli sur le premier token si les deux (ou aucun) matchent."""
+    référence. Repli sur le premier token si les deux (ou aucun) matchent.
+
+    `recognized_quotes` doit contenir À LA FOIS des symboles ET des adresses
+    connues : sur Solana, les entrées de `tokens` n'ont PAS de champ
+    "symbol" (juste "id"/"chain"/"has_image", confirmé en dry-run le
+    14/09/2026) — sans le matching par adresse en plus, ça retombait
+    systématiquement sur le premier token de la liste (souvent SOL lui-même,
+    qui est justement exclu des candidats).
+    """
     tokens = pool.get("tokens", []) or []
     if not tokens:
         return None
-    non_quote = [t for t in tokens if t.get("symbol", "") not in recognized_quotes]
+    non_quote = [
+        t for t in tokens
+        if t.get("symbol", "") not in recognized_quotes and t.get("id", "") not in recognized_quotes
+    ]
     chosen = non_quote[0] if non_quote else tokens[0]
     return chosen.get("id")
 
@@ -84,10 +95,15 @@ class DexPaprikaClient:
     def _resolve_addresses(self, pools: list[dict], resolve_base_token: bool) -> list[str]:
         if not resolve_base_token:
             return [p["id"] for p in pools]  # comportement historique (Robinhood Chain) : id de pool
-        recognized_quotes = set(
-            load_config()["scoring"]["price_volume_liquidity"]["recognized_quote_tokens"].get(
-                self.network_id, []
-            )
+        cfg = load_config()
+        pvl = cfg["scoring"]["price_volume_liquidity"]
+        # Union symboles (ex: "SOL") + adresses connues (ex: excluded_tokens,
+        # qui contient déjà les adresses SOL/USDC/USDT) : sur Solana, les
+        # tokens renvoyés par DexPaprika n'ont pas de champ "symbol", donc le
+        # matching par symbole seul ne suffit pas — voir _pick_base_token_address.
+        recognized_quotes = set(pvl["recognized_quote_tokens"].get(self.network_id, []))
+        recognized_quotes |= set(
+            cfg.get("market_scan", {}).get("excluded_tokens", {}).get(self.network_id, [])
         )
         return [_pick_base_token_address(p, recognized_quotes) or p["id"] for p in pools]
 
@@ -110,7 +126,7 @@ class DexPaprikaClient:
         )
         _raise_for_status_with_body(resp)
         data = resp.json()
-        return self._resolve_addresses(data.get("pools", []), resolve_base_token)
+        return self._resolve_addresses(data.get("results", []), resolve_base_token)
 
     def get_trending_pools(self, limit: int = 20, resolve_base_token: bool = False) -> list[str]:
         """Liste des pools les plus actifs (triés par volume), indépendamment
@@ -126,7 +142,7 @@ class DexPaprikaClient:
         )
         _raise_for_status_with_body(resp)
         data = resp.json()
-        return self._resolve_addresses(data.get("pools", []), resolve_base_token)
+        return self._resolve_addresses(data.get("results", []), resolve_base_token)
 
     def fetch_raw_market_data(self, pool_address: str, token_address: str) -> RawMarketData:
         pool = self.get_pool(pool_address)
