@@ -74,7 +74,7 @@ class DexPaprikaClient:
         remonte que ce qui a déjà du volume (donc probablement déjà monté).
         """
         resp = requests.get(
-            f"{DEXPAPRIKA_BASE_URL}/networks/{self.network_id}/pools",
+            f"{DEXPAPRIKA_BASE_URL}/networks/{self.network_id}/pools/search",
             params={"order_by": "created_at", "sort": "desc", "limit": limit},
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,
@@ -91,7 +91,7 @@ class DexPaprikaClient:
         address" côté moteur) — voir la note dans dry_run.py.
         """
         resp = requests.get(
-            f"{DEXPAPRIKA_BASE_URL}/networks/{self.network_id}/pools",
+            f"{DEXPAPRIKA_BASE_URL}/networks/{self.network_id}/pools/search",
             params={"order_by": "volume_usd", "sort": "desc", "limit": limit},
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,

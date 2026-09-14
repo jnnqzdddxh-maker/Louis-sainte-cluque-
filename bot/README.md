@@ -178,6 +178,17 @@ remplissent pas ces métadonnées), ça baisse juste un peu son score.
 
 ## Limites connues (à traiter avant d'engager du capital réel)
 
+- **Suivi des wallets Robinhood Chain désactivé** (`chains.robinhood.
+  wallet_tracking_enabled: false`) — Bitquery a répondu "usage quota
+  reached" (14/09/2026), quota gratuit épuisé, pas de plan payant prévu.
+  Le scan de marché DexPaprika (gratuit) reste actif sur cette chaîne.
+- **Scans "nouveaux tokens"/"tendances" désactivés côté Solana**
+  (`market_scan.new_listings.solana_enabled` / `trending.solana_enabled` :
+  `false`) — Birdeye a répondu "Compute units usage limit exceeded"
+  (14/09/2026), quota gratuit épuisé après quelques jours de scan toutes
+  les 60s. Le wallet tracker Solana continue de fonctionner normalement
+  (usage bien plus léger). Réactivable en repassant ces deux clés à `true`
+  si le quota se libère ou avec un plan payant.
 - **Encodage du swap Uniswap v4 sur Robinhood Chain non implémenté**
   (`connectors/robinhood_rpc.py:build_v4_swap_calldata` lève
   volontairement `NotImplementedError`). La chaîne a quelques semaines de

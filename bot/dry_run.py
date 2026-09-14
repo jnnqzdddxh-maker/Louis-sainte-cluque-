@@ -54,6 +54,9 @@ def build_market_data_fetchers(cfg: dict) -> dict:
 async def poll_robinhood_wallets_loop(engine: TradingEngine, cfg: dict) -> None:
     if not cfg["chains"]["robinhood"]["enabled"]:
         return
+    if not cfg["chains"]["robinhood"].get("wallet_tracking_enabled", True):
+        log.info("suivi des wallets Robinhood Chain désactivé (chains.robinhood.wallet_tracking_enabled)")
+        return
     tracked = cfg["scoring"]["wallet_tracker"]["tracked_wallets"]["robinhood"]
     if not tracked:
         log.warning("aucun wallet Robinhood Chain suivi dans config.yaml — poll désactivé")
@@ -104,8 +107,11 @@ async def market_scan_new_listings_loop(engine: TradingEngine, cfg: dict) -> Non
     interval = scan_cfg["interval_seconds"]
     limit = scan_cfg["tokens_per_scan"]
 
-    birdeye = BirdeyeClient() if cfg["chains"]["solana"]["enabled"] else None
+    solana_on = cfg["chains"]["solana"]["enabled"] and scan_cfg.get("solana_enabled", True)
+    birdeye = BirdeyeClient() if solana_on else None
     dexpaprika = DexPaprikaClient() if cfg["chains"]["robinhood"]["enabled"] else None
+    if not solana_on:
+        log.info("scan nouveaux tokens Solana désactivé (market_scan.new_listings.solana_enabled)")
 
     while True:
         now = datetime.now(timezone.utc)
@@ -136,8 +142,11 @@ async def market_scan_trending_loop(engine: TradingEngine, cfg: dict) -> None:
     interval = scan_cfg["interval_seconds"]
     limit = scan_cfg["tokens_per_scan"]
 
-    birdeye = BirdeyeClient() if cfg["chains"]["solana"]["enabled"] else None
+    solana_on = cfg["chains"]["solana"]["enabled"] and scan_cfg.get("solana_enabled", True)
+    birdeye = BirdeyeClient() if solana_on else None
     dexpaprika = DexPaprikaClient() if cfg["chains"]["robinhood"]["enabled"] else None
+    if not solana_on:
+        log.info("scan tendances Solana désactivé (market_scan.trending.solana_enabled)")
 
     while True:
         now = datetime.now(timezone.utc)

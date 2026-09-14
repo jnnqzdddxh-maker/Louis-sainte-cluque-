@@ -29,6 +29,11 @@ chains:
     slippage_bps: 150
     wallet_address: ""                    # adresse PUBLIQUE du wallet d'exécution (pas secrète) — à renseigner
     universal_router_address: ""          # adresse déployée du Universal Router v4 sur Robinhood Chain — à confirmer
+    # Désactivé le 14/09/2026 : le suivi des wallets Robinhood Chain passe
+    # par Bitquery, dont le quota gratuit est épuisé (402 "usage quota
+    # reached") — pas de réabonnement prévu. Le scan de marché DexPaprika
+    # (market_scan, gratuit) reste actif pour cette chaîne, lui.
+    wallet_tracking_enabled: false
     # Robinhood Chain est très jeune (quelques semaines de mainnet) :
     # gas ~gratuit les 90 premiers jours, outillage moins mature que Solana.
     # -> exiger plus de cycles de dry-run avant d'y engager du capital réel.
@@ -198,6 +203,12 @@ market_scan:
   # court : c'est celui qui compte le plus pour la stratégie.
   new_listings:
     enabled: true
+    # Désactivé le 14/09/2026 : Birdeye a répondu "Compute units usage limit
+    # exceeded" (quota gratuit épuisé après quelques jours de scan toutes
+    # les 60s) — pas de plan payant prévu. Le wallet tracker Solana continue
+    # de fonctionner normalement (get_token_overview a un usage bien plus
+    # léger). DexPaprika (Robinhood Chain, gratuit) reste actif.
+    solana_enabled: false
     interval_seconds: 60
     tokens_per_scan: 20
 
@@ -207,6 +218,7 @@ market_scan:
   # raté dessus, mais x2-x5 peut rester pertinent.
   trending:
     enabled: true
+    solana_enabled: false  # même raison que new_listings ci-dessus
     interval_seconds: 300
     tokens_per_scan: 20
 
