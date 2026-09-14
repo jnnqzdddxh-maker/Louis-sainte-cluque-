@@ -36,6 +36,15 @@ class RawMarketData:
     paired_with_recognized_quote: bool = False    # pool principal appairé à SOL/USDC/USDT plutôt qu'à un token obscur
 
 
+def _raise_for_status_with_body(resp: requests.Response) -> None:
+    """Comme resp.raise_for_status(), mais garde le corps de la réponse dans
+    le message d'erreur — l'API y met souvent la vraie raison (ex: "this
+    endpoint requires a paid plan"), sinon perdue par raise_for_status seul.
+    """
+    if resp.status_code >= 400:
+        raise MarketDataError(f"{resp.status_code} sur {resp.url}: {resp.text[:500]}")
+
+
 class BirdeyeClient:
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or get_secret("birdeye_api_key_env")
@@ -50,7 +59,7 @@ class BirdeyeClient:
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         data = resp.json()
         if not data.get("success"):
             raise MarketDataError(f"Birdeye token_overview a échoué pour {token_address}: {data}")
@@ -63,7 +72,7 @@ class BirdeyeClient:
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         data = resp.json()
         if not data.get("success"):
             raise MarketDataError(f"Birdeye holders a échoué pour {token_address}: {data}")
@@ -81,7 +90,7 @@ class BirdeyeClient:
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         data = resp.json()
         if not data.get("success"):
             raise MarketDataError(f"Birdeye new_listing a échoué: {data}")
@@ -98,7 +107,7 @@ class BirdeyeClient:
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         data = resp.json()
         if not data.get("success"):
             raise MarketDataError(f"Birdeye token_trending a échoué: {data}")
@@ -115,7 +124,7 @@ class BirdeyeClient:
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         data = resp.json()
         if not data.get("success"):
             raise MarketDataError(f"Birdeye markets a échoué pour {token_address}: {data}")
@@ -182,7 +191,7 @@ class HeliusClient:
             json={"mintAccounts": [token_address]},
             timeout=REQUEST_TIMEOUT_S,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         results = resp.json()
         if not results:
             raise MarketDataError(f"Helius token-metadata vide pour {token_address}")

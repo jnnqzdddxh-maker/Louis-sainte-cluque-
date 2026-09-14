@@ -22,6 +22,15 @@ class MarketDataError(RuntimeError):
     pass
 
 
+def _raise_for_status_with_body(resp: requests.Response) -> None:
+    """Comme resp.raise_for_status(), mais garde le corps de la réponse dans
+    le message d'erreur — sinon perdu par raise_for_status seul, alors que
+    c'est souvent là qu'est la vraie raison (ex: réseau mal identifié,
+    quota dépassé)."""
+    if resp.status_code >= 400:
+        raise MarketDataError(f"{resp.status_code} sur {resp.url}: {resp.text[:500]}")
+
+
 @dataclass
 class RawMarketData:
     token_address: str
@@ -38,13 +47,12 @@ class RawMarketData:
 
 
 class DexPaprikaClient:
-    """Client REST DexPaprika. `network_id` doit correspondre à l'identifiant
-    réseau attribué par DexPaprika à Robinhood Chain — à confirmer dans leur
-    doc/registre réseaux au moment du build (chaîne très récente, l'id peut
-    ne pas encore être stabilisé).
+    """Client REST DexPaprika. `network_id` = "robinhood" (confirmé en
+    dry-run le 14/09/2026 — "robinhood-chain" renvoyait 410 Gone : ce
+    n'était pas le bon identifiant réseau).
     """
 
-    def __init__(self, api_key: str | None = None, network_id: str = "robinhood-chain"):
+    def __init__(self, api_key: str | None = None, network_id: str = "robinhood"):
         self.api_key = api_key or get_secret("dexpaprika_api_key_env", required=False)
         self.network_id = network_id
 
@@ -57,7 +65,7 @@ class DexPaprikaClient:
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         return resp.json()
 
     def get_new_pools(self, limit: int = 20) -> list[str]:
@@ -71,7 +79,7 @@ class DexPaprikaClient:
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         data = resp.json()
         return [p["id"] for p in data.get("pools", [])]
 
@@ -88,7 +96,7 @@ class DexPaprikaClient:
             headers=self._headers(),
             timeout=REQUEST_TIMEOUT_S,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         data = resp.json()
         return [p["id"] for p in data.get("pools", [])]
 
@@ -147,7 +155,7 @@ class BitqueryClient:
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
             timeout=REQUEST_TIMEOUT_S,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         data = resp.json()
         if "errors" in data:
             raise MarketDataError(f"Erreur GraphQL Bitquery: {data['errors']}")
