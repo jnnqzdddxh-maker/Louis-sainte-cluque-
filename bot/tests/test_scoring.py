@@ -118,3 +118,36 @@ def test_score_is_bounded_0_100():
     huge_twitter = TwitterSignal(mention_count=1000, most_recent_mention_age_minutes=0)
     result = compute_score(huge_wallets, GOOD_MARKET, huge_twitter, CFG)
     assert 0.0 <= result.total_score <= 100.0
+
+
+def test_fresh_token_without_volume_history_uses_liquidity_ratio_not_zero():
+    """Avant le 14/09/2026 : volume_avg_baseline=0 (token tout juste créé,
+    pas encore 7j d'historique) faisait retomber volume_ratio_score à 0,
+    plafonnant le market_subscore à 40/100 (breakout + appairage) donc le
+    score total à 16/100 -- sous le seuil "moyenne" (20) quel que soit le
+    momentum de prix. Un token frais actif (volume 24h >= 1.5x sa liquidité)
+    doit maintenant pouvoir dépasser ce plafond."""
+    fresh_active_market = MarketSignal(
+        liquidity_usd=2_000,
+        top_holder_concentration_pct=10,
+        volume_current=3_000,       # 1.5x la liquidité -> momentum plein
+        volume_avg_baseline=0.0,    # pas d'historique 7j
+        breakout_detected=True,
+        paired_with_recognized_quote=True,
+    )
+    result = compute_score(WalletTrackerSignal(0), fresh_active_market, NO_TWITTER, CFG)
+    assert result.market_subscore == 90.0  # 50 (volume/liquidité) + 30 (breakout) + 10 (appairé)
+    assert result.total_score > CFG["scoring"]["confidence_thresholds"]["low_max"]
+    assert result.confidence != Confidence.FAIBLE
+
+
+def test_fresh_token_with_no_liquidity_and_no_baseline_scores_zero_volume_component():
+    market = MarketSignal(
+        liquidity_usd=0.0,
+        top_holder_concentration_pct=10,
+        volume_current=0.0,
+        volume_avg_baseline=0.0,
+        breakout_detected=False,
+    )
+    result = compute_score(WalletTrackerSignal(0), market, NO_TWITTER, CFG)
+    assert result.market_subscore == 0.0

@@ -110,6 +110,17 @@ scoring:
     max_top_holder_concentration_pct: 30   # filtre anti-rug : concentration max du top holder (hors LP/burn)
     volume_spike_window_minutes: 15
     volume_spike_multiplier: 2.0      # volume actuel / volume moyen historique pour "momentum"
+    # Ajouté le 14/09/2026 : pour un token sans 7 jours d'historique (le cas
+    # normal pour un candidat tout juste créé, repéré par le scan "nouveaux
+    # tokens"), il n'y a pas de "volume moyen historique" à comparer.
+    # volume_spike_multiplier ne s'applique donc pas -> on compare plutôt le
+    # volume 24h à la liquidité (métrique indépendante de l'âge du token).
+    # Volume 24h >= 1.5x la liquidité -> score momentum plein (50/50). Avant
+    # cet ajout, ce cas retombait à 0, plafonnant tout token frais à un score
+    # total de 16/100 (sous le seuil "moyenne" à 20) quel que soit son
+    # momentum de prix -> aucune position n'était jamais ouverte via le scan
+    # de marché seul, même après correction du bug de breakout (voir README).
+    fresh_token_volume_to_liquidity_multiplier: 1.5
     breakout_lookback_minutes: 60     # fenêtre pour détecter une cassure de résistance
 
     # Légitimité (bonus dans le sous-score marché, pas éliminatoire) :

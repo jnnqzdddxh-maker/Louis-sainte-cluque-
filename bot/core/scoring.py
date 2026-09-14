@@ -97,11 +97,29 @@ def _market_subscore(signal: MarketSignal, cfg: dict) -> float:
     arnaque pour autant — ça reste un bonus, pas une porte."""
     mc = cfg["scoring"]["price_volume_liquidity"]
     baseline = signal.volume_avg_baseline or 0.0
-    if baseline <= 0:
-        volume_ratio_score = 0.0
-    else:
+    if baseline > 0:
         ratio = signal.volume_current / baseline
         volume_ratio_score = min(50.0, (ratio / mc["volume_spike_multiplier"]) * 50.0)
+    elif signal.liquidity_usd > 0:
+        # Pas d'historique 7j (token tout juste créé -- le cas normal pour un
+        # candidat repéré par le scan "nouveaux tokens") : il n'y a pas de
+        # "moyenne" à comparer, mais retomber à 0 plafonnait le
+        # market_subscore à 40/100 (breakout + appairage) dans ce cas, donc
+        # le score total à 16/100 -- sous le seuil "moyenne" (20), quel que
+        # soit le momentum de prix. Un token frais n'ouvrait donc JAMAIS de
+        # position, même avec un signal marché par ailleurs excellent
+        # (corrigé le 14/09/2026, suite à "il n'a pas ouvert une seule
+        # position encore" après correction du bug de breakout). Le ratio
+        # volume 24h / liquidité reste un signal d'activité réelle valable
+        # indépendamment de l'âge du token : un token vraiment actif voit un
+        # volume proche ou supérieur à sa liquidité, même le jour de sa
+        # création.
+        ratio = signal.volume_current / signal.liquidity_usd
+        volume_ratio_score = min(
+            50.0, (ratio / mc["fresh_token_volume_to_liquidity_multiplier"]) * 50.0
+        )
+    else:
+        volume_ratio_score = 0.0
     breakout_score = 30.0 if signal.breakout_detected else 0.0
     legitimacy_score = (10.0 if signal.has_social_links else 0.0) + (
         10.0 if signal.paired_with_recognized_quote else 0.0

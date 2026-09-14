@@ -223,6 +223,24 @@ passer sans certitude. Pas d'équivalent standardisé sur Robinhood Chain
   sinon le breakout se base sur le momentum de prix seul
   (`price_change_percentage_1h`/`5m`), le seul signal réellement disponible
   sur un token sans historique de volume.
+- **Bug corrigé : un token frais ne pouvait de toute façon jamais atteindre
+  le seuil "moyenne"** (`core/scoring.py:_market_subscore`, 14/09/2026) —
+  signalé par l'utilisateur juste après le fix du breakout ci-dessus ("il a
+  pas ouvert une seule position encore"), et il avait de nouveau raison :
+  le fix du breakout était réel mais insuffisant. Sans historique 7j
+  (`volume_avg_baseline<=0`, cas normal pour un token tout juste créé),
+  `volume_ratio_score` retombait à 0 quel que soit le momentum de prix —
+  plafonnant le market_subscore à `30 (breakout) + 10 (appairage) = 40/100`,
+  donc le score total à `40 × 0.40 = 16/100`. Sous le seuil "moyenne" (20,
+  voir plus haut) : un token frais sans corroboration wallet ne pouvait
+  DONC JAMAIS être tradé via le signal marché seul, indépendamment de son
+  momentum de prix. Corrigé : quand il n'y a pas d'historique 7j mais que
+  la liquidité est connue, le momentum se base sur le ratio volume 24h /
+  liquidité (`scoring.price_volume_liquidity.
+  fresh_token_volume_to_liquidity_multiplier`, 1.5 par défaut = volume 24h
+  >= 1.5x la liquidité pour le score plein) — une métrique d'activité
+  réelle valable dès le jour de création du token, contrairement à une
+  moyenne 7 jours qui n'existe pas encore.
 - **Suivi des wallets Robinhood Chain désactivé** (`chains.robinhood.
   wallet_tracking_enabled: false`) — Bitquery a répondu "usage quota
   reached" (14/09/2026), quota gratuit épuisé, pas de plan payant prévu.
