@@ -61,9 +61,10 @@ def _dexpaprika_solana_client_for(pool: dict) -> DexPaprikaClient:
 
 
 # Pool réaliste d'un token pump.fun tout juste créé : liquidité au-dessus du
-# minimum anti-rug (1500$), volume 24h significatif par rapport à cette
-# liquidité (activité réelle), mais AUCUN historique 7 jours (le cas normal
-# pour un token qui vient d'être lancé) et un vrai momentum de prix positif.
+# minimum anti-rug (300$ depuis le 15/09/2026, voir config.yaml), volume 24h
+# significatif par rapport à cette liquidité (activité réelle), mais AUCUN
+# historique 7 jours (le cas normal pour un token qui vient d'être lancé) et
+# un vrai momentum de prix positif.
 FRESH_ACTIVE_TOKEN_POOL = {
     "id": "3vaJU4tQYUhADSCJCq2eFUDYTk5MF4id6xQT5J7z3kwT",
     "price_usd": 0.0002,

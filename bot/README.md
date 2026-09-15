@@ -191,6 +191,25 @@ passer sans certitude. Pas d'équivalent standardisé sur Robinhood Chain
 
 ## Limites connues (à traiter avant d'engager du capital réel)
 
+- **Liquidité minimale anti-rug re-baissée de 1500$ à 300$**
+  (`scoring.price_volume_liquidity.min_liquidity_usd`, 15/09/2026) —
+  malgré la liste d'attente (recheck automatique pendant 15 min, voir plus
+  bas), les logs dry-run réels montrent que la liquidité des tokens
+  pump.fun ne "rattrape" quasiment jamais 1500$ dans cette fenêtre : des
+  tokens rechecked à 10-15 minutes d'écart restaient à 0-13$ pour la
+  plupart, un 832$ et un 1011$ n'ont pas franchi 1500$ non plus. Hypothèse
+  la plus probable (pas juste un délai d'indexation, contrairement à ce
+  qu'on pensait le 15/09/2026 matin) : le bonding curve pump.fun ne
+  contient tout simplement pas 1500$ de liquidité réelle tant que le token
+  n'a pas "gradué" vers un vrai pool AMM (Raydium) — ce qui n'arrive qu'à
+  une minorité de tokens, souvent après une hausse de prix déjà bien
+  entamée (donc l'entrée précoce y est déjà ratée). Décision explicite de
+  l'utilisateur, qui accepte le risque supplémentaire ("on garde l'autre
+  [la liste d'attente] mais on baisse aussi le seuil ... on est en test
+  autant voir si il finira en positif ou pas") : 300$ est BEAUCOUP plus
+  facile à manipuler/rug qu'à 1500$ — le stop-loss catastrophe
+  (`risk.catastrophe_stop_loss_pct`) reste la protection de dernier recours
+  si un rug passe quand même ce filtre plus permissif.
 - **Seuil de déclenchement wallet baissé de 2 à 1**
   (`scoring.wallet_tracker.min_wallets_to_trigger`, 15/09/2026, demande
   explicite de l'utilisateur : "j'en ai pas beaucoup pour l'instant") —

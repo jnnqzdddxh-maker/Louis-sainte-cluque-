@@ -119,7 +119,24 @@ scoring:
     # presque tous les tokens tout juste créés (trop jeunes pour avoir déjà
     # accumulé cette liquidité), donc quasi aucun candidat ne passait.
     # Compromis assumé : moins de protection contre un rug direct.
-    min_liquidity_usd: 1500           # filtre anti-rug : liquidité minimale
+    #
+    # Re-baissé de 1500$ à 300$ le 15/09/2026 : même avec la liste d'attente
+    # (recheck automatique pendant 15 min, voir market_scan.
+    # liquidity_watchlist), les logs dry-run réels montrent que la liquidité
+    # des tokens pump.fun ne "rattrape" quasiment jamais 1500$ dans cette
+    # fenêtre (rechecks à 10-15 min d'écart encore à 0-13$ pour la plupart).
+    # Hypothèse la plus probable : le bonding curve pump.fun ne contient
+    # tout simplement pas 1500$ de liquidité réelle tant que le token n'a
+    # pas "gradué" vers un vrai pool AMM (Raydium) — ce qui n'arrive qu'à
+    # une minorité de tokens, souvent après une hausse de prix déjà bien
+    # entamée. Décision explicite de l'utilisateur, qui accepte le risque
+    # supplémentaire ("on est en test autant voir si il finira en positif ou
+    # pas") : ce n'est PAS un raffinement sans conséquence, une liquidité de
+    # 300$ est beaucoup plus facile à manipuler/rug qu'à 1500$ — le
+    # catastrophe_stop_loss (risk.catastrophe_stop_loss_pct, section risk)
+    # reste la protection de dernier recours si un rug passe quand même ce
+    # filtre.
+    min_liquidity_usd: 300            # filtre anti-rug : liquidité minimale
     max_top_holder_concentration_pct: 30   # filtre anti-rug : concentration max du top holder (hors LP/burn)
     volume_spike_window_minutes: 15
     volume_spike_multiplier: 2.0      # volume actuel / volume moyen historique pour "momentum"
