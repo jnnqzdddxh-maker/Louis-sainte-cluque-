@@ -193,12 +193,27 @@ class TradingEngine:
 
         score = compute_score(wallet_signal, market_signal, twitter_signal, self.cfg)
         self.candidates[token_address] = Candidate(token_address, chain, score, now, source=source)
-        self.logger.log(
-            "candidate_scored", token_address=token_address, chain=chain, score=score, source=source
+        reason = score.rejection_reason or ""
+        # Bug réel observé le 15/09/2026 : un recheck de liste d'attente qui
+        # retombe sur le MÊME verdict (encore rejeté pour liquidité) n'a
+        # aucune information nouvelle -- l'écrire quand même à chaque fois
+        # (jusqu'à 30 fois par token sur 15 min, pour des dizaines de
+        # tokens/minute) a fait grossir decisions.jsonl au point de dépasser
+        # une limite que Python en mode texte ne peut plus ouvrir sous
+        # Windows (voir core/logging_store.py) -- plus AUCUNE position ne
+        # pouvait s'ouvrir, puisque ce log est écrit avant d'atteindre la
+        # logique d'ouverture. Le dashboard reste à jour quand même (le
+        # dict `candidates` ci-dessus est toujours mis à jour) : seule
+        # l'écriture sur disque de ce cas précis est court-circuitée.
+        redundant_recheck = source == "liquidity_recheck" and score.rejected_anti_rug and reason.startswith(
+            "liquidité"
         )
+        if not redundant_recheck:
+            self.logger.log(
+                "candidate_scored", token_address=token_address, chain=chain, score=score, source=source
+            )
 
         if score.rejected_anti_rug:
-            reason = score.rejection_reason or ""
             wl_cfg = self.cfg.get("market_scan", {}).get("liquidity_watchlist", {})
             if wl_cfg.get("enabled") and reason.startswith("liquidité"):
                 # Liquidité insuffisante n'est PAS définitif (contrairement à

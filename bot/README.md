@@ -191,6 +191,36 @@ passer sans certitude. Pas d'équivalent standardisé sur Robinhood Chain
 
 ## Limites connues (à traiter avant d'engager du capital réel)
 
+- **Bug corrigé : decisions.jsonl trop gros pour être ouvert sous Windows,
+  bloquant TOUTE ouverture de position** (`core/logging_store.py`,
+  `core/engine.py`, 15/09/2026) — l'utilisateur a signalé "toujours pas une
+  position d'ouverte depuis hier soir" ; log réel fourni :
+  `OSError: [Errno 22] Invalid argument: 'logs\decisions.jsonl'` sur
+  `open()`, à la fois en écriture (`"a"`) ET en lecture, y compris pour une
+  seule ligne. Cause : `scoring.py`/`decisions.jsonl` grossissait en continu
+  à cause de `liquidity_watchlist` (ajouté le matin même) qui journalisait
+  "candidate_scored" à CHAQUE recheck (jusqu'à 30 fois par token sur 15 min,
+  toutes les 30s, pour des dizaines de tokens pump.fun détectés par minute)
+  même quand le résultat était identique au précédent — le fichier a fini
+  par dépasser une limite que Python en mode texte ne peut plus ouvrir sous
+  Windows (~2 Go). Conséquence grave, pas juste cosmétique :
+  `TradingEngine._maybe_score_candidate` écrit dans ce log AVANT d'atteindre
+  la logique d'ouverture de position — donc plus AUCUNE position ne
+  pouvait s'ouvrir depuis que le fichier avait dépassé cette taille, quels
+  que soient les seuils de scoring. Corrigé par deux mécanismes
+  complémentaires :
+  - `core/engine.py` : un recheck de liste d'attente qui retombe sur le
+    MÊME verdict (encore rejeté pour liquidité) n'est plus écrit sur disque
+    (le dashboard reste à jour quand même, via le dict `candidates` en
+    mémoire) — seule la détection initiale et les changements de verdict
+    sont journalisés.
+  - `core/logging_store.py` : rotation automatique du fichier de log
+    basée sur `Path.stat()` (jamais sur une ouverture du fichier) dès qu'il
+    dépasse 200 Mo — répare donc automatiquement un fichier DÉJÀ trop gros
+    pour être ouvert, sans action manuelle. `read_all(limit=...)` (utilisé
+    par le dashboard) lit maintenant les dernières lignes en mode binaire
+    avec des seeks explicites (`_tail_lines`) au lieu de charger tout le
+    fichier en mémoire avec `readlines()`.
 - **Liquidité minimale anti-rug re-baissée de 1500$ à 300$**
   (`scoring.price_volume_liquidity.min_liquidity_usd`, 15/09/2026) —
   malgré la liste d'attente (recheck automatique pendant 15 min, voir plus

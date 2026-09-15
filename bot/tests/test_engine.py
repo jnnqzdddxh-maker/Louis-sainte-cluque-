@@ -202,3 +202,25 @@ def test_watchlist_entry_expires_after_max_age(tmp_path):
     engine.recheck_liquidity_watchlist(later)
 
     assert "STALE_TOKEN" not in engine.liquidity_watchlist
+
+
+def test_repeated_identical_liquidity_rejections_are_not_logged_to_disk(tmp_path):
+    """Bug réel corrigé le 15/09/2026 : decisions.jsonl a grossi jusqu'à
+    dépasser une limite que Python en mode texte ne peut plus ouvrir sous
+    Windows, parce qu'un recheck qui retombe sur le MÊME verdict (encore
+    rejeté pour liquidité) était journalisé à chaque fois -- jusqu'à 30 fois
+    par token sur 15 minutes. Le dashboard doit rester à jour (candidates
+    dict) mais l'écriture sur disque de ce cas précis doit être court-
+    circuitée."""
+    real_logger = DecisionLogger(path=tmp_path / "decisions.jsonl", config=CFG)
+    engine = _engine(tmp_path, {"solana": _zero_liquidity_market_fetcher})
+    engine.logger = real_logger
+
+    engine.on_market_scan_hit("SPAMMY_TOKEN", "solana", NOW, source="market_scan_new_listing")
+    for _ in range(10):
+        engine.recheck_liquidity_watchlist(NOW)
+
+    events = [e for e in real_logger.read_all() if e.get("token_address") == "SPAMMY_TOKEN"]
+    assert len(events) == 1  # seule la détection initiale est journalisée, pas les 10 rechecks
+    # Le dashboard reste quand même à jour en mémoire, lui.
+    assert engine.candidates["SPAMMY_TOKEN"].score.rejected_anti_rug
